@@ -1,9 +1,30 @@
-# Home Connect MQTT Bridge
+---
+layout: home
 
-Home Connect MQTT Bridge connects Home Connect appliances to a predictable MQTT contract. Every installation is defined in `config/config.yml` and can contain multiple independent `instances`.
+hero:
+  name: Home Connect MQTT Bridge
+  text: Bring Home Connect appliances to MQTT
+  tagline: OAuth-aware appliance control, state updates, and a documented MQTT contract in one Docker-ready bridge.
+  image:
+    src: /logo.svg
+    alt: Home Connect MQTT Bridge logo
+  actions:
+    - theme: brand
+      text: Get started
+      link: /getting-started
+    - theme: alt
+      text: Authentication
+      link: /authentication
 
-- [Get started](/getting-started)
-- [Configure the bridge](/configuration)
-- [Use MQTT topics](/mqtt)
-- [Authenticate](/authentication)
-- [Deploy with Docker](/deployment)
+features:
+  - title: OAuth lifecycle
+    details: Start consent in the browser and retain only the local session data needed to refresh access.
+  - title: Appliance control
+    details: Publish supported appliance commands through explicit, documented MQTT topics.
+  - title: Operable deployment
+    details: Configure multiple appliances in YAML and run the bridge with Docker.
+---
+
+Every installation is defined in `config/config.yml`. Continue with [configuration](/configuration), [authentication](/authentication), or the [MQTT contract](/mqtt).
+
+For local WLED controllers, see the companion [WLED MQTT Bridge documentation](https://tobiaswaelde.github.io/wled-mqtt-bridge/).

@@ -1,4 +1,4 @@
-import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { CONFIG } from '~/config/config';
 import { HomeConnect } from '~/lib/home-connect';
 import { MqttService } from '~/modules/mqtt/mqtt.service';
@@ -13,9 +13,9 @@ export class BridgeService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Creates the class instance.
-   * @param mqtt - Value of type `MqttService`.
+   * @param {MqttService} mqtt The mqtt value.
    */
-  constructor(mqtt: MqttService) {
+  constructor(@Inject(MqttService) mqtt: MqttService) {
     this.instances = CONFIG.instances
       .filter((instance) => instance.enabled)
       .map((instance) => new HomeConnect(instance, mqtt));
@@ -23,7 +23,7 @@ export class BridgeService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Executes `onModuleInit`.
-   * @returns Result of type `void`.
+   * @returns {void} Result.
    */
   onModuleInit() {
     this.instances.forEach((instance) => instance.setup());
@@ -32,7 +32,7 @@ export class BridgeService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Executes `onModuleDestroy`.
-   * @returns Result of type `void`.
+   * @returns {void} Result.
    */
   onModuleDestroy() {
     if (this.timer) clearInterval(this.timer);
@@ -41,8 +41,8 @@ export class BridgeService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Executes `createAuthorizationUrl`.
-   * @param id - Value of type `string | undefined`.
-   * @returns Result of type `string`.
+   * @param {string | undefined} id The id value.
+   * @returns {string} Result.
    */
   createAuthorizationUrl(id?: string) {
     return this.getInstance(id).createAuthorizationUrl();
@@ -50,9 +50,9 @@ export class BridgeService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Executes `completeAuthorization`.
-   * @param state - Value of type `string`.
-   * @param code - Value of type `string`.
-   * @returns Result of type `Promise<boolean>`.
+   * @param {string} state The state value.
+   * @param {string} code The code value.
+   * @returns {Promise<boolean>} Result.
    */
   async completeAuthorization(state: string, code: string) {
     const instance = this.instances.find((candidate) => candidate.hasAuthorizationState(state));
@@ -61,8 +61,8 @@ export class BridgeService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Executes `getInstance`.
-   * @param id - Value of type `string | undefined`.
-   * @returns Result of type `HomeConnect`.
+   * @param {string | undefined} id The id value.
+   * @returns {HomeConnect} Result.
    */
   private getInstance(id?: string) {
     if (id) {

@@ -1,11 +1,13 @@
 import { defineConfig } from 'vitepress';
 export default defineConfig({
-  title: 'Homeconnect Mqtt Bridge',
-  description: 'MQTT bridge documentation',
+  title: 'Home Connect MQTT Bridge',
+  description: 'Reliable MQTT integration for Home Connect appliances.',
   base: '/homeconnect-mqtt-bridge/',
   cleanUrls: true,
   lastUpdated: true,
+  head: [['link', { rel: 'icon', href: '/homeconnect-mqtt-bridge/favicon.svg', type: 'image/svg+xml' }]],
   themeConfig: {
+    logo: '/logo.svg',
     nav: [
       { text: 'Guide', link: '/' },
       { text: 'Configuration', link: '/configuration' },

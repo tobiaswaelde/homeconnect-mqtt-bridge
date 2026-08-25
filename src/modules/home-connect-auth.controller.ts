@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Header,
+  Inject,
   Query,
   Redirect,
   Version,
@@ -17,13 +18,13 @@ import { BridgeService } from './bridge.service';
 export class HomeConnectAuthController {
   /**
    * Creates the class instance.
-   * @param bridge - Value of type `BridgeService`.
+   * @param {BridgeService} bridge The bridge value.
    */
-  constructor(private readonly bridge: BridgeService) {}
+  constructor(@Inject(BridgeService) private readonly bridge: BridgeService) {}
 
   /** Redirects the browser to Home Connect's unmodified consent screen.
-   * @param instance - Value of type `string | undefined`.
-   * @returns Result of type `{ url: string; }`.
+   * @param {string | undefined} instance The instance value.
+   * @returns {{ url: string; }} Result.
    */
   @Get('authorize')
   @Redirect()
@@ -39,10 +40,10 @@ export class HomeConnectAuthController {
   }
 
   /** Receives the authorization code, verifies OAuth state, and shows the browser result.
-   * @param code - Value of type `string | undefined`.
-   * @param state - Value of type `string | undefined`.
-   * @param error - Value of type `string | undefined`.
-   * @returns Result of type `Promise<string>`.
+   * @param {string | undefined} code The code value.
+   * @param {string | undefined} state The state value.
+   * @param {string | undefined} error The error value.
+   * @returns {Promise<string>} Result.
    */
   @Get('callback')
   @Header('content-type', 'text/html; charset=utf-8')

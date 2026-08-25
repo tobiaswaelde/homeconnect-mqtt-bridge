@@ -6,41 +6,15 @@ import { HttpMqttBridge } from '~/lib/http-mqtt-bridge';
 import type { MqttBridgeClient } from '~/modules/mqtt/mqtt.service';
 import { HomeConnectConfig } from '~/types/config/home-connect';
 import { objectToMap } from '~/util/object';
-
-interface OAuthToken {
-  access_token: string;
-  expires_in: number;
-  refresh_token?: string;
-}
-
-interface HomeConnectAuthentication {
-  expiresAt: number;
-  token: OAuthToken;
-}
-
-interface Appliance {
-  haId: string;
-}
-
-interface HomeAppliancesResponse {
-  data: {
-    homeappliances: Appliance[];
-  };
-}
-
-interface HomeConnectCommand {
-  applianceId: string;
-  body?: unknown;
-  method?: 'DELETE' | 'PUT';
-  path: string;
-}
-
-interface HomeConnectProgram {
-  key: string;
-  options?: unknown[];
-}
-
-type MqttScalar = string | number | boolean;
+import type {
+  Appliance,
+  HomeAppliancesResponse,
+  HomeConnectAuthentication,
+  HomeConnectCommand,
+  HomeConnectProgram,
+  MqttScalar,
+  OAuthToken,
+} from './types';
 
 /** Bridges Home Connect appliance state and event streams to MQTT.
  */
@@ -58,8 +32,8 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Creates the class instance.
-   * @param cfg - Value of type `{ id: string; enabled: boolean; topic: string; apiBaseUrl: string; clientId: string; clientSecret: string; eventReconnectInterval: number; redirectUri: string | undefined; updateInterval: number; authFile?: string | undefined; authorizationCode?: string | undefined; refreshToken?: string | undefined; }`.
-   * @param mqtt - Value of type `MqttBridgeClient`.
+   * @param {{ id: string; enabled: boolean; topic: string; apiBaseUrl: string; clientId: string; clientSecret: string; eventReconnectInterval: number; redirectUri: string | undefined; updateInterval: number; authFile?: string | undefined; authorizationCode?: string | undefined; refreshToken?: string | undefined; }} cfg The cfg value.
+   * @param {MqttBridgeClient} mqtt The mqtt value.
    */
   constructor(cfg: HomeConnectConfig, mqtt: MqttBridgeClient) {
     super(cfg, mqtt, `HOME_CONNECT@${cfg.topic}`, cfg.apiBaseUrl);
@@ -67,7 +41,7 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Executes `topic`.
-   * @returns Result of type `string`.
+   * @returns {string} Result.
    */
   public get topic() {
     return this.cfg.topic;
@@ -75,7 +49,7 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Executes `id`.
-   * @returns Result of type `string`.
+   * @returns {string} Result.
    */
   public get id() {
     return this.cfg.id;
@@ -83,7 +57,7 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Executes `setup`.
-   * @returns Result of type `void`.
+   * @returns {void} Result.
    */
   public setup() {
     this.mqtt.publish(`${this.cfg.topic}/connected`, false);
@@ -94,7 +68,7 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Executes `destroy`.
-   * @returns Result of type `void`.
+   * @returns {void} Result.
    */
   public override destroy() {
     if (this.destroyed) return;
@@ -107,7 +81,7 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
   }
 
   /** Starts a browser authorization flow and returns the Home Connect login URL.
-   * @returns Result of type `string`.
+   * @returns {string} Result.
    */
   public createAuthorizationUrl() {
     if (!this.cfg.redirectUri) throw new Error('A redirectUri is required for browser authorization.');
@@ -123,9 +97,9 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
   }
 
   /** Verifies a browser callback's state and exchanges its authorization code for OAuth tokens.
-   * @param state - Value of type `string`.
-   * @param code - Value of type `string`.
-   * @returns Result of type `Promise<boolean>`.
+   * @param {string} state The state value.
+   * @param {string} code The code value.
+   * @returns {Promise<boolean>} Result.
    */
   public async completeAuthorization(state: string, code: string) {
     if (!this.hasAuthorizationState(state)) return false;
@@ -141,8 +115,8 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
   }
 
   /** Checks whether this bridge owns an active authorization request.
-   * @param state - Value of type `string`.
-   * @returns Result of type `boolean`.
+   * @param {string} state The state value.
+   * @returns {boolean} Result.
    */
   public hasAuthorizationState(state: string) {
     const authorizationState = this.authorizationState;
@@ -155,7 +129,7 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Executes `initialize`.
-   * @returns Result of type `Promise<void>`.
+   * @returns {Promise<void>} Result.
    */
   private async initialize() {
     await this.loadAuthentication();
@@ -165,7 +139,7 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Executes `refreshAppliances`.
-   * @returns Result of type `Promise<void>`.
+   * @returns {Promise<void>} Result.
    */
   private async refreshAppliances() {
     const appliances = await this.getAppliances();
@@ -178,7 +152,7 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Executes `getAppliances`.
-   * @returns Result of type `Promise<Appliance[] | undefined>`.
+   * @returns {Promise<Appliance[] | undefined>} Result.
    */
   private async getAppliances() {
     const controller = this.startRequest('appliances');
@@ -203,8 +177,8 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Executes `refreshAppliance`.
-   * @param id - Value of type `string`.
-   * @returns Result of type `Promise<void>`.
+   * @param {string} id The id value.
+   * @returns {Promise<void>} Result.
    */
   private async refreshAppliance(id: string) {
     await Promise.all(
@@ -214,9 +188,9 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Executes `getApplianceData`.
-   * @param id - Value of type `string`.
-   * @param path - Value of type `string`.
-   * @returns Result of type `Promise<void>`.
+   * @param {string} id The id value.
+   * @param {string} path The path value.
+   * @returns {Promise<void>} Result.
    */
   private async getApplianceData(id: string, path: string) {
     const key = `appliance:${id}:${path}`;
@@ -237,8 +211,8 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Executes `connectEvents`.
-   * @param id - Value of type `string`.
-   * @returns Result of type `void`.
+   * @param {string} id The id value.
+   * @returns {void} Result.
    */
   private connectEvents(id: string) {
     const key = `events:${id}`;
@@ -278,9 +252,9 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Executes `handleEvent`.
-   * @param id - Value of type `string`.
-   * @param event - Value of type `string`.
-   * @returns Result of type `void`.
+   * @param {string} id The id value.
+   * @param {string} event The event value.
+   * @returns {void} Result.
    */
   private handleEvent(id: string, event: string) {
     const dataLine = event.split('\n').find((line) => line.startsWith('data:'));
@@ -298,8 +272,8 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Executes `scheduleEventReconnect`.
-   * @param id - Value of type `string`.
-   * @returns Result of type `void`.
+   * @param {string} id The id value.
+   * @returns {void} Result.
    */
   private scheduleEventReconnect(id: string) {
     const timer = setTimeout(() => {
@@ -311,7 +285,7 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Executes `subscribeCommands`.
-   * @returns Result of type `void`.
+   * @returns {void} Result.
    */
   private subscribeCommands() {
     const commandTopic = `${this.cfg.topic}/set/json`;
@@ -338,9 +312,9 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
   }
 
   /** Starts an appliance program from its MQTT program topic.
-   * @param topic - Value of type `string`.
-   * @param payload - Value of type `string`.
-   * @returns Result of type `void`.
+   * @param {string} topic The topic value.
+   * @param {string} payload The payload value.
+   * @returns {void} Result.
    */
   private startProgram(topic: string, payload: string) {
     if (!payload) return;
@@ -362,8 +336,8 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Executes `applianceIdFromProgramTopic`.
-   * @param topic - Value of type `string`.
-   * @returns Result of type `string | undefined`.
+   * @param {string} topic The topic value.
+   * @returns {string | undefined} Result.
    */
   private applianceIdFromProgramTopic(topic: string) {
     const prefix = `${this.cfg.topic}/appliances/`;
@@ -376,8 +350,8 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Executes `isProgram`.
-   * @param program - Value of type `HomeConnectProgram`.
-   * @returns Result of type `boolean`.
+   * @param {HomeConnectProgram} program The program value.
+   * @returns {boolean} Result.
    */
   private isProgram(program: HomeConnectProgram): program is HomeConnectProgram {
     return (
@@ -389,8 +363,8 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Executes `executeCommand`.
-   * @param command - Value of type `HomeConnectCommand`.
-   * @returns Result of type `Promise<void>`.
+   * @param {HomeConnectCommand} command The command value.
+   * @returns {Promise<void>} Result.
    */
   private async executeCommand(command: HomeConnectCommand) {
     const controller = this.startRequest(`command:${command.applianceId}`);
@@ -417,7 +391,7 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Executes `ensureToken`.
-   * @returns Result of type `Promise<boolean>`.
+   * @returns {Promise<boolean>} Result.
    */
   private async ensureToken() {
     if (this.token && Date.now() < this.tokenExpiresAt - 60_000) return true;
@@ -435,8 +409,8 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Executes `requestToken`.
-   * @param controller - Value of type `AbortController`.
-   * @returns Result of type `Promise<boolean>`.
+   * @param {AbortController} controller The controller value.
+   * @returns {Promise<boolean>} Result.
    */
   private async requestToken(controller: AbortController) {
     try {
@@ -471,7 +445,7 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Executes `authorizationHeaders`.
-   * @returns Result of type `{ authorization: string; }`.
+   * @returns {{ authorization: string; }} Result.
    */
   private authorizationHeaders() {
     if (!this.token) throw new Error('Home Connect access token is unavailable.');
@@ -479,7 +453,7 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
   }
 
   /** Builds the local path used exclusively for OAuth authentication.
-   * @returns Result of type `string`.
+   * @returns {string} Result.
    */
   private get authenticationFile() {
     const topicHash = createHash('sha256').update(this.cfg.topic).digest('hex').slice(0, 12);
@@ -488,7 +462,7 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
   }
 
   /** Restores the most recently acquired OAuth token and its refresh token, if available.
-   * @returns Result of type `Promise<void>`.
+   * @returns {Promise<void>} Result.
    */
   private async loadAuthentication() {
     try {
@@ -508,7 +482,7 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
   }
 
   /** Atomically stores only OAuth credentials with owner-only file permissions.
-   * @returns Result of type `Promise<void>`.
+   * @returns {Promise<void>} Result.
    */
   private async persistAuthentication() {
     if (!this.token?.refresh_token) return;
@@ -529,8 +503,8 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Executes `isAuthentication`.
-   * @param value - Value of type `unknown`.
-   * @returns Result of type `boolean`.
+   * @param {unknown} value The value value.
+   * @returns {boolean} Result.
    */
   private isAuthentication(value: unknown): value is HomeConnectAuthentication {
     if (!value || typeof value !== 'object') return false;
@@ -551,10 +525,10 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Executes `publishData`.
-   * @param id - Value of type `string`.
-   * @param category - Value of type `string`.
-   * @param data - Value of type `unknown`.
-   * @returns Result of type `void`.
+   * @param {string} id The id value.
+   * @param {string} category The category value.
+   * @param {unknown} data The data value.
+   * @returns {void} Result.
    */
   private publishData(id: string, category: string, data: unknown) {
     if (!data || typeof data !== 'object') return;
@@ -572,10 +546,10 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
   }
 
   /** Publishes Home Connect key/value/unit records below their feature key rather than an array index.
-   * @param id - Value of type `string`.
-   * @param category - Value of type `string`.
-   * @param feature - Value of type `Record<string, unknown>`.
-   * @returns Result of type `void`.
+   * @param {string} id The id value.
+   * @param {string} category The category value.
+   * @param {Record<string, unknown>} feature The feature value.
+   * @returns {void} Result.
    */
   private publishFeature(id: string, category: string, feature: Record<string, unknown>) {
     if (typeof feature.key !== 'string' || !this.isMqttScalar(feature.value)) return;
@@ -588,8 +562,8 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Executes `asRecord`.
-   * @param value - Value of type `unknown`.
-   * @returns Result of type `Record<string, unknown> | undefined`.
+   * @param {unknown} value The value value.
+   * @returns {Record<string, unknown> | undefined} Result.
    */
   private asRecord(value: unknown): Record<string, unknown> | undefined {
     return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
@@ -597,8 +571,8 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Executes `asRecords`.
-   * @param value - Value of type `unknown`.
-   * @returns Result of type `Record<string, unknown>[]`.
+   * @param {unknown} value The value value.
+   * @returns {Record<string, unknown>[]} Result.
    */
   private asRecords(value: unknown) {
     return Array.isArray(value)
@@ -608,8 +582,8 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Executes `isMqttScalar`.
-   * @param value - Value of type `unknown`.
-   * @returns Result of type `boolean`.
+   * @param {unknown} value The value value.
+   * @returns {boolean} Result.
    */
   private isMqttScalar(value: unknown): value is MqttScalar {
     return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
@@ -617,8 +591,8 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Executes `isEnumValue`.
-   * @param value - Value of type `MqttScalar`.
-   * @returns Result of type `boolean`.
+   * @param {MqttScalar} value The value value.
+   * @returns {boolean} Result.
    */
   private isEnumValue(value: MqttScalar): value is string {
     return typeof value === 'string' && value.includes('.EnumType.');
@@ -626,8 +600,8 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Executes `formatEnumValue`.
-   * @param value - Value of type `MqttScalar`.
-   * @returns Result of type `string | number | boolean`.
+   * @param {MqttScalar} value The value value.
+   * @returns {string | number | boolean} Result.
    */
   private formatEnumValue(value: MqttScalar) {
     return this.isEnumValue(value) ? value.slice(value.lastIndexOf('.') + 1) : value;
@@ -635,8 +609,8 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Executes `applianceTopic`.
-   * @param id - Value of type `string`.
-   * @returns Result of type `string`.
+   * @param {string} id The id value.
+   * @returns {string} Result.
    */
   private applianceTopic(id: string) {
     return `${this.cfg.topic}/appliances/${id}`;
@@ -644,10 +618,10 @@ export class HomeConnect extends HttpMqttBridge<HomeConnectConfig> {
 
   /**
    * Executes `logError`.
-   * @param message - Value of type `string`.
-   * @param error - Value of type `unknown`.
-   * @param signal - Value of type `AbortSignal | undefined`.
-   * @returns Result of type `void`.
+   * @param {string} message The message value.
+   * @param {unknown} error The error value.
+   * @param {AbortSignal | undefined} signal The signal value.
+   * @returns {void} Result.
    */
   private logError(message: string, error: unknown, signal?: AbortSignal) {
     if (signal?.aborted || this.destroyed) return;

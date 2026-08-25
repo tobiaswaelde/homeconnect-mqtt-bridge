@@ -1,6 +1,6 @@
 # Home Connect MQTT Bridge
 
-[![CI](https://github.com/tobiaswaelde/homeconnect-mqtt-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/tobiaswaelde/homeconnect-mqtt-bridge/actions/workflows/ci.yml) [![Docs](https://github.com/tobiaswaelde/homeconnect-mqtt-bridge/actions/workflows/pages.yml/badge.svg)](https://tobiaswaelde.github.io/homeconnect-mqtt-bridge/) [![Deploy](https://github.com/tobiaswaelde/homeconnect-mqtt-bridge/actions/workflows/deploy.yml/badge.svg)](https://github.com/tobiaswaelde/homeconnect-mqtt-bridge/actions/workflows/deploy.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/tobiaswaelde/homeconnect-mqtt-bridge/ci.yml?style=for-the-badge&label=CI)](https://github.com/tobiaswaelde/homeconnect-mqtt-bridge/actions/workflows/ci.yml) [![Docs](https://img.shields.io/github/actions/workflow/status/tobiaswaelde/homeconnect-mqtt-bridge/pages.yml?style=for-the-badge&label=Docs)](https://tobiaswaelde.github.io/homeconnect-mqtt-bridge/) [![Deploy](https://img.shields.io/github/actions/workflow/status/tobiaswaelde/homeconnect-mqtt-bridge/deploy.yml?style=for-the-badge&label=Deploy)](https://github.com/tobiaswaelde/homeconnect-mqtt-bridge/actions/workflows/deploy.yml)
 
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-tobiaswaelde-FFDD00?style=for-the-badge&logo=buymeacoffee)](https://www.buymeacoffee.com/tobiaswaelde)
 
@@ -43,4 +43,11 @@ Example command:
 mosquitto_pub -h mqtt.example.net -t 'home/home-connect/kitchen/appliances/BOSCH-HA-ID/programs/active/set/json' -m '{"key":"ConsumerProducts.CoffeeMaker.Program.Beverage.Espresso"}'
 ```
 
-See the [configuration](https://tobiaswaelde.github.io/homeconnect-mqtt-bridge/configuration), [MQTT contract](https://tobiaswaelde.github.io/homeconnect-mqtt-bridge/mqtt), [authentication](https://tobiaswaelde.github.io/homeconnect-mqtt-bridge/authentication), and [deployment guide](https://tobiaswaelde.github.io/homeconnect-mqtt-bridge/deployment).
+## Documentation
+
+- [Documentation home](https://tobiaswaelde.github.io/homeconnect-mqtt-bridge/)
+- [Configuration](https://tobiaswaelde.github.io/homeconnect-mqtt-bridge/configuration)
+- [Authentication](https://tobiaswaelde.github.io/homeconnect-mqtt-bridge/authentication)
+- [MQTT contract](https://tobiaswaelde.github.io/homeconnect-mqtt-bridge/mqtt)
+- [Docker deployment](https://tobiaswaelde.github.io/homeconnect-mqtt-bridge/deployment)
+- [WLED MQTT Bridge for local LED controllers](https://tobiaswaelde.github.io/wled-mqtt-bridge/)

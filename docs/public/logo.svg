@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title>Home Connect MQTT Bridge</title>
+  <rect width="128" height="128" rx="30" fill="#0f62fe"/>
+  <path fill="#fff" d="M22 60 64 24l42 36v43a9 9 0 0 1-9 9H31a9 9 0 0 1-9-9zm29 52V76h26v36z"/>
+  <path fill="#a6c8ff" d="M90 44h18v18H90z"/>
+</svg>
