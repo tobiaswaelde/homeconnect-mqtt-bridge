@@ -28,11 +28,21 @@ mqtt:
   password: change-me
 instances:
   - id: kitchen
+    enabled: true
     topic: home/home-connect/kitchen
     clientId: your-client-id
     clientSecret: your-client-secret
-    redirectUri: http://localhost:3003/home-connect/callback
+    # This must be the externally reachable, registered callback URL.
+    redirectUri: https://bridge.example.net/home-connect/callback
+    authFile: kitchen.auth.json
+    apiBaseUrl: https://api.home-connect.com
+    eventReconnectInterval: 30000
     updateInterval: 60000
 ```
 
-Do not commit passwords, API usernames, or generated `*.auth.json` files.
+- `clientId` and `clientSecret` are mandatory for every enabled account. Disabled, prepared placeholders may omit both fields.
+- `authFile` is optional. If omitted, the bridge creates a topic-specific `.home-connect-<hash>.auth.json` file in the directory holding `config.yml`; all such files are written with mode `0600`.
+- `apiBaseUrl` defaults to `https://api.home-connect.com`. Use another value only for an official Home Connect test environment.
+- `eventReconnectInterval` is the SSE reconnect delay in milliseconds and defaults to `30000`; `updateInterval` controls status polling and defaults to `60000`.
+
+Do not commit passwords, API usernames, `config.yml`, or generated `*.auth.json` files.

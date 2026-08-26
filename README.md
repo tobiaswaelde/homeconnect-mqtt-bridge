@@ -27,7 +27,7 @@ instances:
     topic: home/home-connect/kitchen
     clientId: your-client-id
     clientSecret: your-client-secret
-    redirectUri: http://localhost:3003/home-connect/callback
+    redirectUri: https://bridge.example.net/home-connect/callback
     updateInterval: 60000
 ```
 
@@ -37,6 +37,12 @@ Example command:
 
 ```bash
 mosquitto_pub -h mqtt.example.net -t 'home/home-connect/kitchen/appliances/BOSCH-HA-ID/programs/active/set/json' -m '{"key":"ConsumerProducts.CoffeeMaker.Program.Beverage.Espresso"}'
+```
+
+Discover `BOSCH-HA-ID` after authentication with:
+
+```bash
+mosquitto_sub -h mqtt.example.net -t 'home/home-connect/kitchen/appliances/json' -C 1
 ```
 
 ## Documentation

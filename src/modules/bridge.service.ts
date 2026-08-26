@@ -1,5 +1,5 @@
 import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { CONFIG } from '~/config/config';
+import { CONFIG, type ActiveHomeConnectConfig, type HomeConnectConfig } from '~/config/config';
 import { HomeConnect } from '~/lib/home-connect';
 import { MqttService } from '~/modules/mqtt/mqtt.service';
 
@@ -17,7 +17,7 @@ export class BridgeService implements OnModuleInit, OnModuleDestroy {
    */
   constructor(@Inject(MqttService) mqtt: MqttService) {
     this.instances = CONFIG.instances
-      .filter((instance) => instance.enabled)
+      .filter((instance): instance is ActiveHomeConnectConfig => isEnabledInstance(instance))
       .map((instance) => new HomeConnect(instance, mqtt));
   }
 
@@ -73,4 +73,8 @@ export class BridgeService implements OnModuleInit, OnModuleDestroy {
     if (this.instances.length !== 1) throw new Error('Specify the Home Connect instance id.');
     return this.instances[0];
   }
+}
+
+function isEnabledInstance(instance: HomeConnectConfig): instance is ActiveHomeConnectConfig {
+  return instance.enabled;
 }

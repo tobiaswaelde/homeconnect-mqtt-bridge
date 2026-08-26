@@ -8,5 +8,14 @@ instances:
     topic: home/home-connect/kitchen
     clientId: your-client-id
     clientSecret: your-client-secret
-    redirectUri: http://localhost:3003/home-connect/callback
+    # Register this exact public URL in the Home Connect Developer Portal.
+    redirectUri: https://bridge.example.net/home-connect/callback
+    authFile: kitchen.auth.json
+    apiBaseUrl: https://api.home-connect.com
+    eventReconnectInterval: 30000
     updateInterval: 60000
+
+  # Prepared but disabled accounts do not need OAuth credentials yet.
+  - id: future-kitchen
+    enabled: false
+    topic: home/home-connect/future-kitchen

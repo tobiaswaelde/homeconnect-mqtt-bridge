@@ -23,12 +23,14 @@ export interface HomeAppliancesResponse {
   };
 }
 
-/** Request sent to a Home Connect appliance endpoint. */
+/** Explicit appliance operation that can be initiated over MQTT. */
+export type HomeConnectCommandPath = 'programs/active' | 'programs/selected';
+
+/** A validated appliance command ready for the Home Connect API. */
 export interface HomeConnectCommand {
   applianceId: string;
-  body?: unknown;
-  method?: 'DELETE' | 'PUT';
-  path: string;
+  body: { data: HomeConnectProgram };
+  path: HomeConnectCommandPath;
 }
 
 /** Home Connect program representation used for command validation. */

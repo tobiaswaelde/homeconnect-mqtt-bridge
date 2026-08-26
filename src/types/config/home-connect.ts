@@ -1,1 +1,1 @@
-export type { HomeConnectConfig } from '~/config/config';
+export type { ActiveHomeConnectConfig, HomeConnectConfig } from '~/config/config';

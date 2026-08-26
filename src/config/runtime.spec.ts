@@ -33,4 +33,22 @@ describe('configuration contract', () => {
     expect(() => configSchema.parse({ ...example, instances: [first, { ...first, topic: 'home/other' }] })).toThrow();
     expect(() => configSchema.parse({ ...example, instances: [first, { ...first, id: 'other' }] })).toThrow();
   });
+
+  it('requires OAuth client credentials only for enabled Home Connect instances', async () => {
+    const { configSchema } = await import('./config');
+    const base = { mqtt: { host: 'localhost', clientId: 'bridge' } };
+
+    expect(
+      configSchema.parse({
+        ...base,
+        instances: [{ enabled: false, id: 'future-kitchen', topic: 'home/home-connect/future-kitchen' }],
+      }).instances,
+    ).toHaveLength(1);
+    expect(() =>
+      configSchema.parse({
+        ...base,
+        instances: [{ enabled: true, id: 'kitchen', topic: 'home/home-connect/kitchen' }],
+      }),
+    ).toThrow();
+  });
 });
