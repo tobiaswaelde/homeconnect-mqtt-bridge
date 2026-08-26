@@ -6,14 +6,16 @@ import { HomeConnectClient } from './client';
 import {
   applianceCategories,
   applianceTopic,
+  bridgeTopic,
   commandErrorTopic,
   commandResultTopic,
   parseProgramCommandTopic,
   programCommandSchema,
   programCommandTopics,
+  publishApplianceInfo,
   publishCategory,
 } from './mqtt-contract';
-import type { HomeConnectCommand } from './types';
+import type { HomeConnectCommand, HomeConnectCommandOperation } from './types';
 
 /** Bridges discovered Home Connect appliances, state categories, and validated program commands to MQTT. */
 export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
@@ -74,7 +76,7 @@ export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
   /** Completes an OAuth callback, then discovers and publishes appliances. */
   async completeAuthorization(state: string, code: string) {
     if (!(await this.auth.completeAuthorization(state, code))) {
-      this.recordFailure();
+      this.recordDiscoveryFailure();
       return false;
     }
     await this.refreshAppliances();
@@ -97,7 +99,10 @@ export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
 
     this.discoveredApplianceIds.clear();
     appliances.forEach((appliance) => this.discoveredApplianceIds.add(appliance.haId));
-    this.mqtt.publish(`${this.cfg.topic}/appliances/json`, JSON.stringify(appliances));
+    this.mqtt.publish(bridgeTopic(this.cfg.topic, 'appliances/json'), JSON.stringify(appliances));
+    appliances.forEach((appliance) =>
+      publishApplianceInfo(this.mqtt.publish.bind(this.mqtt), this.cfg.topic, appliance.haId, appliance),
+    );
     this.recordSuccess();
     await Promise.all(appliances.map((appliance) => this.refreshAppliance(appliance.haId)));
     appliances.forEach((appliance) => this.connectEvents(appliance.haId));
@@ -107,10 +112,13 @@ export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
     const controller = this.startRequest('appliances');
     try {
       const accessToken = await this.accessToken();
-      if (!accessToken) return;
+      if (!accessToken) {
+        this.recordDiscoveryFailure();
+        return;
+      }
       return await this.client.getAppliances(accessToken, controller.signal);
     } catch (error) {
-      this.recordFailure();
+      if (!controller.signal.aborted) this.recordDiscoveryFailure();
       this.logError('Failed to load Home Connect appliances.', error, controller.signal);
       return;
     } finally {
@@ -131,7 +139,6 @@ export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
       const data = await this.client.getCategory(applianceId, category, accessToken, controller.signal);
       publishCategory(this.mqtt.publish.bind(this.mqtt), this.cfg.topic, applianceId, category, data);
     } catch (error) {
-      this.recordFailure();
       this.logError(`Failed to load Home Connect ${category} for ${applianceId}.`, error, controller.signal);
     } finally {
       this.finishRequest(key, controller);
@@ -197,9 +204,14 @@ export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
       if (!this.discoveredApplianceIds.has(details.applianceId))
         throw new Error('Appliance is not currently discovered.');
       const program = programCommandSchema.parse(JSON.parse(payload));
-      void this.executeCommand({ applianceId: details.applianceId, body: { data: program }, path: details.path });
+      void this.executeCommand({
+        applianceId: details.applianceId,
+        body: { data: program },
+        operation: details.operation,
+        path: details.path,
+      });
     } catch (error) {
-      this.publishCommandError(details?.applianceId, details?.path ?? 'unknown', error);
+      this.publishCommandError(details?.applianceId, details?.operation, error);
     } finally {
       this.mqtt.publish(commandTopic, null);
     }
@@ -213,32 +225,41 @@ export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
       if (!accessToken) {
         this.publishCommandError(
           command.applianceId,
-          command.path,
+          command.operation,
           new Error('Home Connect authentication is unavailable.'),
         );
         return;
       }
       await this.client.executeCommand(command, accessToken, controller.signal);
-      this.mqtt.publish(
-        commandResultTopic(this.cfg.topic, command.applianceId),
-        JSON.stringify({ applianceId: command.applianceId, operation: command.path, status: 'success' }),
-      );
+      if (controller.signal.aborted) return;
+
       await this.refreshAppliance(command.applianceId);
+      if (controller.signal.aborted) return;
+
+      this.mqtt.publish(
+        commandResultTopic(this.cfg.topic, command.applianceId, command.operation),
+        JSON.stringify({ applianceId: command.applianceId, operation: command.operation, status: 'success' }),
+      );
     } catch (error) {
-      this.recordFailure();
-      this.publishCommandError(command.applianceId, command.path, error);
+      if (controller.signal.aborted) return;
+
+      this.publishCommandError(command.applianceId, command.operation, error);
       this.logError(`Failed to execute Home Connect command for ${command.applianceId}.`, error, controller.signal);
     } finally {
       this.finishRequest(key, controller);
     }
   }
 
-  private publishCommandError(applianceId: string | undefined, operation: string, error: unknown) {
+  private publishCommandError(
+    applianceId: string | undefined,
+    operation: HomeConnectCommandOperation | undefined,
+    error: unknown,
+  ) {
     this.mqtt.publish(
-      commandErrorTopic(this.cfg.topic, applianceId),
+      commandErrorTopic(this.cfg.topic, applianceId, operation),
       JSON.stringify({
         applianceId: applianceId ?? null,
-        operation,
+        operation: operation ?? null,
         reason: error instanceof Error ? error.message : String(error),
         status: 'error',
       }),
@@ -247,7 +268,6 @@ export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
 
   private async accessToken() {
     if (await this.auth.ensureToken()) return this.auth.accessToken;
-    this.recordFailure();
     return undefined;
   }
 
@@ -256,7 +276,7 @@ export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
     this.publishAvailability(true);
   }
 
-  private recordFailure() {
+  private recordDiscoveryFailure() {
     this.consecutiveFailures += 1;
     if (this.consecutiveFailures >= 3) this.publishAvailability(false);
   }
@@ -264,7 +284,7 @@ export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
   private publishAvailability(connected: boolean) {
     if (this.connected === connected && this.connected) return;
     this.connected = connected;
-    this.mqtt.publish(`${this.cfg.topic}/connected`, connected);
+    this.mqtt.publish(bridgeTopic(this.cfg.topic, 'connected'), connected);
   }
 
   private logError(message: string, error: unknown, signal?: AbortSignal) {

@@ -1,45 +1,74 @@
 # MQTT contract
 
-Every enabled account publishes availability at `<topic>/connected`. It is set to `false` at startup, shutdown, and after three consecutive authentication/API failures. Discovery publishes the complete appliance list to `<topic>/appliances/json`; subscribe to that topic after authentication to obtain each `<appliance-id>`.
+All topics are below the configured instance topic. The bridge does not recursively flatten Home Connect API responses, so array positions never become MQTT topic segments.
 
-## Published appliance data
+## Bridge discovery and availability
 
-For every discovered appliance, the bridge publishes these categories:
+```text
+<topic>/bridge/connected
+<topic>/bridge/appliances/json
+```
 
-- `<topic>/appliances/<appliance-id>/status/json`
-- `<topic>/appliances/<appliance-id>/settings/json`
-- `<topic>/appliances/<appliance-id>/programs/active/json`
-- `<topic>/appliances/<appliance-id>/programs/selected/json`
-- `<topic>/appliances/<appliance-id>/events/json`
+`connected` is `false` at startup and shutdown, and after three consecutive failed appliance-discovery cycles. A successful discovery publishes `true`. `appliances/json` contains the complete appliance-list response and provides the appliance IDs used below.
 
-The JSON topics retain the category response in its API shape. Feature records containing `key`, `value`, and optionally `unit` additionally publish scalar topics at `<category>/<url-encoded-key>`. Enum values publish a display value there and the unchanged API enum at `<category>/<url-encoded-key>/raw`; units use `/unit`. No array-index topics are published.
+## Appliance data
 
-Home Connect SSE messages are published unchanged at `events/json` and, when valid JSON, receive the same stable feature topics under `events/`.
+```text
+<topic>/appliances/<appliance-id>/info/json
+<topic>/appliances/<appliance-id>/info/<scalar-field>
+
+<topic>/appliances/<appliance-id>/status/json
+<topic>/appliances/<appliance-id>/settings/json
+<topic>/appliances/<appliance-id>/programs/active/json
+<topic>/appliances/<appliance-id>/programs/selected/json
+<topic>/appliances/<appliance-id>/events/json
+```
+
+Feature records with a Home Connect `key`, `value`, and optional `unit` are additionally published below the category:
+
+```text
+<topic>/appliances/<appliance-id>/<category>/features/<url-encoded-key>/value
+<topic>/appliances/<appliance-id>/<category>/features/<url-encoded-key>/value_human
+<topic>/appliances/<appliance-id>/<category>/features/<url-encoded-key>/unit
+```
+
+`value` always contains the unchanged Home Connect value. `value_human` is published for enum values and contains its final enum segment, for example `Run`. `unit` is published when Home Connect supplied one. SSE payloads are published unchanged at `events/json` and also receive feature topics when they are valid JSON.
 
 ## Commands
 
-Commands are intentionally limited to discovered appliances and the two documented program paths. Publish non-retained JSON and the bridge clears the input topic after processing.
+Commands are limited to appliances discovered during the most recent refresh. Publish a non-retained JSON payload; after validating the received message, the bridge clears the command input topic. The corresponding result or error topic is authoritative for the asynchronous API operation.
 
 Start the active program:
+
+```text
+<topic>/appliances/<appliance-id>/commands/programs-active/set/json
+```
 
 ```json
 { "key": "ConsumerProducts.CoffeeMaker.Program.Beverage.Espresso" }
 ```
 
-```text
-<topic>/appliances/<appliance-id>/programs/active/set/json
-```
-
 Select a program without starting it:
+
+```text
+<topic>/appliances/<appliance-id>/commands/programs-selected/set/json
+```
 
 ```json
 { "key": "ConsumerProducts.Dishwasher.Program.Eco50" }
 ```
 
+Optional `options` are an array of Home Connect option objects with `key` and `value`.
+
+Each command operation has separate result topics. A `success` result means that Home Connect accepted the API request and the bridge completed its immediate state refresh; use the published status and event topics to confirm the appliance's resulting operation state.
+
 ```text
-<topic>/appliances/<appliance-id>/programs/selected/set/json
+<topic>/appliances/<appliance-id>/commands/programs-active/result/json
+<topic>/appliances/<appliance-id>/commands/programs-active/error/json
+<topic>/appliances/<appliance-id>/commands/programs-selected/result/json
+<topic>/appliances/<appliance-id>/commands/programs-selected/error/json
 ```
 
-Optional `options` are an array of Home Connect option objects with a `key` and `value`. Arbitrary paths, HTTP methods, appliance IDs, and the former `<topic>/set/json` passthrough are not accepted.
+The bridge subscribes only to the command topics listed above; all other MQTT topics are ignored.
 
-Successful commands publish `{ "status": "success", ... }` to `<topic>/appliances/<appliance-id>/commands/result/json`. Validation errors and failed API calls publish `{ "status": "error", ... }` to `<topic>/appliances/<appliance-id>/commands/error/json`; malformed topics that do not identify an appliance use `<topic>/commands/error/json`.
+Home Connect requires remote control and remote start to be enabled on the appliance before a program can start. Commands should originate from an informed user action; Home Connect can reject a command when the appliance is locally controlled or not ready.

@@ -26,10 +26,14 @@ export interface HomeAppliancesResponse {
 /** Explicit appliance operation that can be initiated over MQTT. */
 export type HomeConnectCommandPath = 'programs/active' | 'programs/selected';
 
+/** MQTT-safe command operation names mapped to Home Connect API paths. */
+export type HomeConnectCommandOperation = 'programs-active' | 'programs-selected';
+
 /** A validated appliance command ready for the Home Connect API. */
 export interface HomeConnectCommand {
   applianceId: string;
   body: { data: HomeConnectProgram };
+  operation: HomeConnectCommandOperation;
   path: HomeConnectCommandPath;
 }
 

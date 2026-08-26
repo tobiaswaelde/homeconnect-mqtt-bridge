@@ -1,6 +1,8 @@
 # Home Connect MQTT Bridge
 
-[![CI](https://img.shields.io/github/actions/workflow/status/tobiaswaelde/homeconnect-mqtt-bridge/ci.yml?style=for-the-badge&label=CI)](https://github.com/tobiaswaelde/homeconnect-mqtt-bridge/actions/workflows/ci.yml) [![Docs](https://img.shields.io/github/actions/workflow/status/tobiaswaelde/homeconnect-mqtt-bridge/docs.yml?style=for-the-badge&label=Docs)](https://github.com/tobiaswaelde/homeconnect-mqtt-bridge/actions/workflows/docs.yml) [![Deploy](https://img.shields.io/github/actions/workflow/status/tobiaswaelde/homeconnect-mqtt-bridge/deploy.yml?style=for-the-badge&label=Deploy)](https://github.com/tobiaswaelde/homeconnect-mqtt-bridge/actions/workflows/deploy.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/tobiaswaelde/homeconnect-mqtt-bridge/ci.yml?style=for-the-badge&label=CI)](https://github.com/tobiaswaelde/homeconnect-mqtt-bridge/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/github/actions/workflow/status/tobiaswaelde/homeconnect-mqtt-bridge/docs.yml?style=for-the-badge&label=Docs)](https://github.com/tobiaswaelde/homeconnect-mqtt-bridge/actions/workflows/docs.yml)
+[![Deploy](https://img.shields.io/github/actions/workflow/status/tobiaswaelde/homeconnect-mqtt-bridge/deploy.yml?style=for-the-badge&label=Deploy)](https://github.com/tobiaswaelde/homeconnect-mqtt-bridge/actions/workflows/deploy.yml)
 
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-tobiaswaelde-FFDD00?style=for-the-badge&logo=buymeacoffee)](https://www.buymeacoffee.com/tobiaswaelde)
 
@@ -36,13 +38,13 @@ instances:
 Example command:
 
 ```bash
-mosquitto_pub -h mqtt.example.net -t 'home/home-connect/kitchen/appliances/BOSCH-HA-ID/programs/active/set/json' -m '{"key":"ConsumerProducts.CoffeeMaker.Program.Beverage.Espresso"}'
+mosquitto_pub -h mqtt.example.net -t 'home/home-connect/kitchen/appliances/BOSCH-HA-ID/commands/programs-active/set/json' -m '{"key":"ConsumerProducts.CoffeeMaker.Program.Beverage.Espresso"}'
 ```
 
 Discover `BOSCH-HA-ID` after authentication with:
 
 ```bash
-mosquitto_sub -h mqtt.example.net -t 'home/home-connect/kitchen/appliances/json' -C 1
+mosquitto_sub -h mqtt.example.net -t 'home/home-connect/kitchen/bridge/appliances/json' -C 1
 ```
 
 ## Documentation

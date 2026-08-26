@@ -27,11 +27,11 @@ describe('HomeConnect', () => {
     instance.subscribeCommands();
 
     expect(mqtt.subscribe).toHaveBeenCalledWith(
-      'home/home-connect/appliances/+/programs/active/set/json',
+      'home/home-connect/appliances/+/commands/programs-active/set/json',
       expect.any(Function),
     );
     expect(mqtt.subscribe).toHaveBeenCalledWith(
-      'home/home-connect/appliances/+/programs/selected/set/json',
+      'home/home-connect/appliances/+/commands/programs-selected/set/json',
       expect.any(Function),
     );
     expect(mqtt.subscribe).not.toHaveBeenCalledWith('home/home-connect/set/json', expect.any(Function));
@@ -39,11 +39,11 @@ describe('HomeConnect', () => {
 
   it('rejects commands for an unknown appliance and clears their input topic', () => {
     const { instance, mqtt } = createBridge();
-    const topic = 'home/home-connect/appliances/unknown/programs/active/set/json';
+    const topic = 'home/home-connect/appliances/unknown/commands/programs-active/set/json';
     instance.startProgram(topic, JSON.stringify({ key: 'ConsumerProducts.CoffeeMaker.Program.Beverage.Espresso' }));
 
     expect(mqtt.publish).toHaveBeenCalledWith(
-      'home/home-connect/appliances/unknown/commands/error/json',
+      'home/home-connect/appliances/unknown/commands/programs-active/error/json',
       expect.stringContaining('not currently discovered'),
     );
     expect(mqtt.publish).toHaveBeenCalledWith(topic, null);
@@ -53,12 +53,12 @@ describe('HomeConnect', () => {
     const { instance, mqtt } = createBridge();
     instance.discoveredApplianceIds.add('appliance-id');
     instance.executeCommand = jest.fn();
-    const topic = 'home/home-connect/appliances/appliance-id/programs/active/set/json';
+    const topic = 'home/home-connect/appliances/appliance-id/commands/programs-active/set/json';
     instance.startProgram(topic, JSON.stringify({ path: '/anything' }));
 
     expect(instance.executeCommand).not.toHaveBeenCalled();
     expect(mqtt.publish).toHaveBeenCalledWith(
-      'home/home-connect/appliances/appliance-id/commands/error/json',
+      'home/home-connect/appliances/appliance-id/commands/programs-active/error/json',
       expect.stringContaining('key'),
     );
     expect(mqtt.publish).toHaveBeenCalledWith(topic, null);
@@ -68,12 +68,13 @@ describe('HomeConnect', () => {
     const { instance, mqtt } = createBridge();
     instance.discoveredApplianceIds.add('appliance-id');
     instance.executeCommand = jest.fn();
-    const topic = 'home/home-connect/appliances/appliance-id/programs/selected/set/json';
+    const topic = 'home/home-connect/appliances/appliance-id/commands/programs-selected/set/json';
     instance.startProgram(topic, JSON.stringify({ key: 'ConsumerProducts.CoffeeMaker.Program.Beverage.Espresso' }));
 
     expect(instance.executeCommand).toHaveBeenCalledWith({
       applianceId: 'appliance-id',
       body: { data: { key: 'ConsumerProducts.CoffeeMaker.Program.Beverage.Espresso' } },
+      operation: 'programs-selected',
       path: 'programs/selected',
     });
     expect(mqtt.publish).toHaveBeenCalledWith(topic, null);
@@ -89,6 +90,7 @@ describe('HomeConnect', () => {
     await instance.executeCommand({
       applianceId: 'appliance-id',
       body: { data: { key: 'ConsumerProducts.CoffeeMaker.Program.Beverage.Espresso' } },
+      operation: 'programs-active',
       path: 'programs/active',
     });
 
@@ -98,12 +100,51 @@ describe('HomeConnect', () => {
       expect.any(AbortSignal),
     );
     expect(mqtt.publish).toHaveBeenCalledWith(
-      'home/home-connect/appliances/appliance-id/commands/result/json',
+      'home/home-connect/appliances/appliance-id/commands/programs-active/result/json',
       expect.stringContaining('"status":"success"'),
+    );
+    const publish = mqtt.publish as jest.Mock;
+    expect(instance.refreshAppliance.mock.invocationCallOrder[0]).toBeLessThan(
+      publish.mock.invocationCallOrder.at(-1)!,
     );
   });
 
-  it('publishes a command error and switches offline after persistent API failures', async () => {
+  it('does not publish an error for a superseded command request', async () => {
+    const { instance, mqtt } = createBridge();
+    instance.auth.ensureToken = jest.fn().mockResolvedValue(true);
+    instance.auth.token = { access_token: 'access-token', expires_in: 600 };
+    instance.refreshAppliance = jest.fn().mockResolvedValue(undefined);
+    let calls = 0;
+    let signalFirstRequest: () => void;
+    const firstRequestStarted = new Promise<void>((resolve) => {
+      signalFirstRequest = resolve;
+    });
+    instance.client.executeCommand = jest.fn((_: unknown, __: unknown, signal: AbortSignal) => {
+      calls += 1;
+      if (calls > 1) return Promise.resolve();
+
+      signalFirstRequest();
+      return new Promise<void>((_, reject) => signal.addEventListener('abort', () => reject(new Error('aborted'))));
+    });
+    const command = {
+      applianceId: 'appliance-id',
+      body: { data: { key: 'ConsumerProducts.CoffeeMaker.Program.Beverage.Espresso' } },
+      operation: 'programs-active' as const,
+      path: 'programs/active' as const,
+    };
+
+    const first = instance.executeCommand(command);
+    await firstRequestStarted;
+    await instance.executeCommand(command);
+    await first;
+
+    expect(mqtt.publish).not.toHaveBeenCalledWith(
+      'home/home-connect/appliances/appliance-id/commands/programs-active/error/json',
+      expect.stringContaining('aborted'),
+    );
+  });
+
+  it('publishes command errors without changing bridge availability', async () => {
     const { instance, mqtt } = createBridge();
     instance.auth.ensureToken = jest.fn().mockResolvedValue(true);
     instance.auth.token = { access_token: 'access-token', expires_in: 600 };
@@ -111,18 +152,17 @@ describe('HomeConnect', () => {
     const command = {
       applianceId: 'appliance-id',
       body: { data: { key: 'ConsumerProducts.CoffeeMaker.Program.Beverage.Espresso' } },
+      operation: 'programs-active' as const,
       path: 'programs/active' as const,
     };
 
     await instance.executeCommand(command);
-    await instance.executeCommand(command);
-    await instance.executeCommand(command);
 
     expect(mqtt.publish).toHaveBeenCalledWith(
-      'home/home-connect/appliances/appliance-id/commands/error/json',
+      'home/home-connect/appliances/appliance-id/commands/programs-active/error/json',
       expect.stringContaining('API unavailable'),
     );
-    expect(mqtt.publish).toHaveBeenCalledWith('home/home-connect/connected', false);
+    expect(mqtt.publish).not.toHaveBeenCalledWith('home/home-connect/bridge/connected', false);
   });
 
   it('switches offline after persistent authentication failures', async () => {
@@ -133,7 +173,20 @@ describe('HomeConnect', () => {
     await instance.getAppliances();
     await instance.getAppliances();
 
-    expect(mqtt.publish).toHaveBeenCalledWith('home/home-connect/connected', false);
+    expect(mqtt.publish).toHaveBeenCalledWith('home/home-connect/bridge/connected', false);
+  });
+
+  it('switches offline after three failed appliance discovery cycles', async () => {
+    const { instance, mqtt } = createBridge();
+    instance.auth.ensureToken = jest.fn().mockResolvedValue(true);
+    instance.auth.token = { access_token: 'access-token', expires_in: 600 };
+    instance.client.getAppliances = jest.fn().mockRejectedValue(new Error('API unavailable'));
+
+    await instance.getAppliances();
+    await instance.getAppliances();
+    await instance.getAppliances();
+
+    expect(mqtt.publish).toHaveBeenCalledWith('home/home-connect/bridge/connected', false);
   });
 
   it('keeps a single active SSE stream per appliance', async () => {
@@ -153,13 +206,13 @@ describe('HomeConnect', () => {
 
 type TestableBridge = {
   auth: { ensureToken: jest.Mock; token?: { access_token: string; expires_in: number } };
-  client: { consumeEventStream: jest.Mock; executeCommand: jest.Mock };
+  client: { consumeEventStream: jest.Mock; executeCommand: jest.Mock; getAppliances: jest.Mock };
   connectEvents(id: string): void;
   destroy(): void;
   discoveredApplianceIds: Set<string>;
   executeCommand(command: unknown): Promise<void>;
   getAppliances(): Promise<unknown>;
-  refreshAppliance(id: string): Promise<void>;
+  refreshAppliance: jest.Mock;
   startProgram(topic: string, payload: string): void;
   subscribeCommands(): void;
 };

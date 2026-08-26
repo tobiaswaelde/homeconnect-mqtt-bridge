@@ -1,8 +1,13 @@
 import { z } from 'zod';
-import type { HomeConnectCommandPath, MqttScalar } from './types';
+import type { HomeConnectCommandOperation, HomeConnectCommandPath, MqttScalar } from './types';
 
 /** API categories that are polled and published for each discovered appliance. */
 export const applianceCategories = ['status', 'settings', 'programs/active', 'programs/selected'] as const;
+
+const programOperations: Record<HomeConnectCommandOperation, HomeConnectCommandPath> = {
+  'programs-active': 'programs/active',
+  'programs-selected': 'programs/selected',
+};
 
 /** Program payload accepted on an appliance program command topic. */
 export const programCommandSchema = z
@@ -12,7 +17,7 @@ export const programCommandSchema = z
   })
   .strict();
 
-/** Decodes only the two explicit program command paths supported by this bridge. */
+/** Decodes only the two explicit command operations supported by this bridge. */
 export function parseProgramCommandTopic(topic: string, rootTopic: string) {
   const prefix = `${rootTopic}/appliances/`;
   const suffix = '/set/json';
@@ -23,16 +28,25 @@ export function parseProgramCommandTopic(topic: string, rootTopic: string) {
   if (separator <= 0) return;
 
   const applianceId = remainder.slice(0, separator);
-  const path = remainder.slice(separator + 1);
-  if (applianceId.includes('/') || !isCommandPath(path)) return;
-  return { applianceId, path };
+  const command = remainder.slice(separator + 1);
+  if (!command.startsWith('commands/')) return;
+
+  const operation = command.slice('commands/'.length);
+  const path = programOperations[operation as HomeConnectCommandOperation];
+  if (applianceId.includes('/') || !path) return;
+  return { applianceId, operation: operation as HomeConnectCommandOperation, path };
 }
 
 /** Lists the stable topics that accept validated program commands. */
 export function programCommandTopics(rootTopic: string) {
-  return (['programs/active', 'programs/selected'] as const).map(
-    (path) => `${rootTopic}/appliances/+/${path}/set/json`,
+  return (Object.keys(programOperations) as HomeConnectCommandOperation[]).map(
+    (operation) => `${rootTopic}/appliances/+/commands/${operation}/set/json`,
   );
+}
+
+/** Produces a bridge-level topic. */
+export function bridgeTopic(rootTopic: string, name: string) {
+  return `${rootTopic}/bridge/${name}`;
 }
 
 /** Produces a per-appliance topic without incorporating API array positions. */
@@ -41,15 +55,31 @@ export function applianceTopic(rootTopic: string, applianceId: string) {
 }
 
 /** Returns the per-appliance success topic for a command. */
-export function commandResultTopic(rootTopic: string, applianceId: string) {
-  return `${applianceTopic(rootTopic, applianceId)}/commands/result/json`;
+export function commandResultTopic(rootTopic: string, applianceId: string, operation: HomeConnectCommandOperation) {
+  return `${applianceTopic(rootTopic, applianceId)}/commands/${operation}/result/json`;
 }
 
 /** Returns the per-appliance error topic for a command. */
-export function commandErrorTopic(rootTopic: string, applianceId?: string) {
-  return applianceId
-    ? `${applianceTopic(rootTopic, applianceId)}/commands/error/json`
-    : `${rootTopic}/commands/error/json`;
+export function commandErrorTopic(rootTopic: string, applianceId?: string, operation?: HomeConnectCommandOperation) {
+  return applianceId && operation
+    ? `${applianceTopic(rootTopic, applianceId)}/commands/${operation}/error/json`
+    : `${bridgeTopic(rootTopic, 'commands/error/json')}`;
+}
+
+/** Publishes appliance metadata without recursively flattening API data. */
+export function publishApplianceInfo(
+  publish: (topic: string, payload: string | number | boolean | null) => void,
+  rootTopic: string,
+  applianceId: string,
+  appliance: unknown,
+) {
+  const root = `${applianceTopic(rootTopic, applianceId)}/info`;
+  publish(`${root}/json`, JSON.stringify(appliance));
+  const record = asRecord(appliance);
+  if (!record) return;
+
+  for (const [key, value] of Object.entries(record))
+    if (isMqttScalar(value)) publish(`${root}/${encodeURIComponent(key)}`, value);
 }
 
 /** Publishes a category as JSON and only stable key/value/unit feature topics. */
@@ -77,9 +107,9 @@ function publishFeature(
   feature: Record<string, unknown>,
 ) {
   if (typeof feature.key !== 'string' || !isMqttScalar(feature.value)) return;
-  const topic = `${root}/${encodeURIComponent(feature.key)}`;
-  publish(topic, formatEnumValue(feature.value));
-  if (isEnumValue(feature.value)) publish(`${topic}/raw`, feature.value);
+  const topic = `${root}/features/${encodeURIComponent(feature.key)}`;
+  publish(`${topic}/value`, feature.value);
+  if (isEnumValue(feature.value)) publish(`${topic}/value_human`, formatEnumValue(feature.value));
   if (isMqttScalar(feature.unit)) publish(`${topic}/unit`, feature.unit);
 }
 
@@ -91,10 +121,6 @@ function records(value: unknown) {
   return Array.isArray(value)
     ? value.map((item) => asRecord(item)).filter((item): item is Record<string, unknown> => !!item)
     : [];
-}
-
-function isCommandPath(path: string): path is HomeConnectCommandPath {
-  return path === 'programs/active' || path === 'programs/selected';
 }
 
 function isMqttScalar(value: unknown): value is MqttScalar {

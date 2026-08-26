@@ -1,15 +1,18 @@
-import { parseProgramCommandTopic, programCommandSchema, publishCategory } from './mqtt-contract';
+import { parseProgramCommandTopic, programCommandSchema, publishApplianceInfo, publishCategory } from './mqtt-contract';
 
 describe('Home Connect MQTT contract', () => {
   it('accepts only the documented fixed program paths', () => {
     expect(
       parseProgramCommandTopic(
-        'home/home-connect/appliances/appliance-id/programs/active/set/json',
+        'home/home-connect/appliances/appliance-id/commands/programs-active/set/json',
         'home/home-connect',
       ),
-    ).toEqual({ applianceId: 'appliance-id', path: 'programs/active' });
+    ).toEqual({ applianceId: 'appliance-id', operation: 'programs-active', path: 'programs/active' });
     expect(
-      parseProgramCommandTopic('home/home-connect/appliances/appliance-id/settings/set/json', 'home/home-connect'),
+      parseProgramCommandTopic(
+        'home/home-connect/appliances/appliance-id/commands/settings/set/json',
+        'home/home-connect',
+      ),
     ).toBeUndefined();
   });
 
@@ -35,13 +38,24 @@ describe('Home Connect MQTT contract', () => {
       expect.stringContaining('OperationState'),
     );
     expect(publish).toHaveBeenCalledWith(
-      'home/home-connect/appliances/appliance-id/status/BSH.Common.Status.OperationState',
-      'Run',
-    );
-    expect(publish).toHaveBeenCalledWith(
-      'home/home-connect/appliances/appliance-id/status/BSH.Common.Status.OperationState/raw',
+      'home/home-connect/appliances/appliance-id/status/features/BSH.Common.Status.OperationState/value',
       'BSH.Common.EnumType.OperationState.Run',
     );
+    expect(publish).toHaveBeenCalledWith(
+      'home/home-connect/appliances/appliance-id/status/features/BSH.Common.Status.OperationState/value_human',
+      'Run',
+    );
     expect(publish.mock.calls.map(([topic]) => topic).join('\n')).not.toContain('/items/0/');
+  });
+
+  it('publishes appliance metadata below a dedicated info branch', () => {
+    const publish = jest.fn();
+    publishApplianceInfo(publish, 'home/home-connect', 'appliance-id', { haId: 'appliance-id', name: 'Coffee maker' });
+
+    expect(publish).toHaveBeenCalledWith(
+      'home/home-connect/appliances/appliance-id/info/json',
+      JSON.stringify({ haId: 'appliance-id', name: 'Coffee maker' }),
+    );
+    expect(publish).toHaveBeenCalledWith('home/home-connect/appliances/appliance-id/info/name', 'Coffee maker');
   });
 });
