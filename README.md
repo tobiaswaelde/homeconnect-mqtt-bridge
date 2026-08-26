@@ -22,16 +22,12 @@ mqtt:
   clientId: homeconnect-mqtt-bridge
   username: mqtt-user
   password: change-me
-http:
-  port: 3000
-logging:
-  level: log
 instances:
   - id: kitchen
     topic: home/home-connect/kitchen
     clientId: your-client-id
     clientSecret: your-client-secret
-    redirectUri: http://localhost:3000/home-connect/callback
+    redirectUri: http://localhost:3003/home-connect/callback
     updateInterval: 60000
 ```
 

@@ -27,6 +27,7 @@ export function objectToMap(value: unknown, prefix = ''): Map<string, string | n
   visit(value, prefix);
   return result;
 }
+
 /**
  * Executes `parseObject`.
  * @param {T} value The value value.

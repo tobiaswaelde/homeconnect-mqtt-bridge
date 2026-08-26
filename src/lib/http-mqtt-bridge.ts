@@ -1,11 +1,13 @@
 import { Logger } from '@nestjs/common';
 import axios, { type AxiosInstance } from 'axios';
 import type { MqttBridgeClient, MqttMessageHandler } from '~/modules/mqtt/mqtt.service';
+
 export interface BridgeInstance {
   setup(): void;
   loop(time: number): void;
   destroy(): void;
 }
+
 /**
  * Executes `HttpMqttBridge`.
  * @typeParam T Generic type parameter `T`.

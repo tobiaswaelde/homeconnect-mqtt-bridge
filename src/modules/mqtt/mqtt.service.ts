@@ -4,6 +4,7 @@ import { CONFIG } from '~/config/config';
 import { resolveMqttClientId } from './client-id';
 
 export type MqttMessageHandler = (topic: string, payload: string) => void;
+
 export interface MqttBridgeClient {
   publish(topic: string, payload: string | number | boolean | null): void;
   subscribe(topic: string, handler: MqttMessageHandler): () => void;
@@ -99,6 +100,7 @@ export class MqttService implements MqttBridgeClient, OnModuleDestroy {
           }
   }
 }
+
 /**
  * Executes `matches`.
  * @param {string} filter The filter value.
