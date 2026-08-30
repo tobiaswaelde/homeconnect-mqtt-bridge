@@ -49,12 +49,11 @@ export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
     return this.cfg.id;
   }
 
-  /** Sets up command routing and starts the first appliance discovery. */
+  /** Sets up command routing and restores the persisted OAuth session before the first synchronization. */
   setup() {
     this.publishAvailability(false);
     this.subscribeCommands();
     void this.initialize();
-    this.poll('appliances', this.cfg.updateInterval, () => this.refreshAppliances());
   }
 
   /** Stops requests, subscriptions, timers, OAuth refreshes, and event streams. */
@@ -73,13 +72,13 @@ export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
     return this.auth.createAuthorizationUrl();
   }
 
-  /** Completes an OAuth callback, then discovers and publishes appliances. */
+  /** Completes an OAuth callback, then performs the first complete appliance synchronization. */
   async completeAuthorization(state: string, code: string) {
     if (!(await this.auth.completeAuthorization(state, code))) {
       this.recordDiscoveryFailure();
       return false;
     }
-    await this.refreshAppliances();
+    await this.refreshAppliances(true);
     return true;
   }
 
@@ -90,13 +89,21 @@ export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
 
   private async initialize() {
     await this.auth.load();
-    await this.refreshAppliances();
+    await this.refreshAppliances(true);
+    if (!this.destroyed) this.poll('appliances', this.cfg.updateInterval, () => this.refreshAppliances());
   }
 
-  private async refreshAppliances() {
+  /**
+   * Reconciles appliance inventory and starts event streams after every boot.
+   * Full state is requested only for the initial synchronization and newly discovered appliances;
+   * Home Connect event streams provide subsequent state changes without exhausting API quotas.
+   * @param {boolean} includeKnownApplianceState Whether to reload state for already known appliances.
+   */
+  private async refreshAppliances(includeKnownApplianceState = false) {
     const appliances = await this.getAppliances();
     if (!appliances || this.destroyed) return;
 
+    const knownApplianceIds = new Set(this.discoveredApplianceIds);
     this.discoveredApplianceIds.clear();
     appliances.forEach((appliance) => this.discoveredApplianceIds.add(appliance.haId));
     this.mqtt.publish(bridgeTopic(this.cfg.topic, 'appliances/json'), JSON.stringify(appliances));
@@ -104,7 +111,10 @@ export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
       publishApplianceInfo(this.mqtt.publish.bind(this.mqtt), this.cfg.topic, appliance.haId, appliance),
     );
     this.recordSuccess();
-    await Promise.all(appliances.map((appliance) => this.refreshAppliance(appliance.haId)));
+    const appliancesWithStateToLoad = includeKnownApplianceState
+      ? appliances
+      : appliances.filter((appliance) => !knownApplianceIds.has(appliance.haId));
+    await Promise.all(appliancesWithStateToLoad.map((appliance) => this.refreshAppliance(appliance.haId)));
     appliances.forEach((appliance) => this.connectEvents(appliance.haId));
   }
 

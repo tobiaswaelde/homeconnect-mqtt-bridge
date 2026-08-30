@@ -37,12 +37,13 @@ instances:
     authFile: kitchen.auth.json
     apiBaseUrl: https://api.home-connect.com
     eventReconnectInterval: 30000
-    updateInterval: 60000
+    # Inventory reconciliation interval; status changes arrive through SSE.
+    updateInterval: 600000
 ```
 
 - `clientId` and `clientSecret` are mandatory for every enabled account. Disabled, prepared placeholders may omit both fields.
 - `authFile` is optional. If omitted, the bridge creates a topic-specific `.home-connect-<hash>.auth.json` file in the directory holding `config.yml`; all such files are written with mode `0600`.
 - `apiBaseUrl` defaults to `https://api.home-connect.com`. Use another value only for an official Home Connect test environment.
-- `eventReconnectInterval` is the SSE reconnect delay in milliseconds and defaults to `30000`; `updateInterval` controls status polling and defaults to `60000`.
+- `eventReconnectInterval` is the SSE reconnect delay in milliseconds and defaults to `30000`. `updateInterval` controls appliance-inventory reconciliation and defaults to `600000` (10 minutes). The bridge loads full state after boot and for newly discovered appliances; ongoing state changes arrive through SSE.
 
 Do not commit passwords, API usernames, `config.yml`, or generated `*.auth.json` files.

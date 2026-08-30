@@ -30,7 +30,7 @@ instances:
     clientId: your-client-id
     clientSecret: your-client-secret
     redirectUri: https://bridge.example.net/home-connect/callback
-    updateInterval: 60000
+    updateInterval: 600000
 ```
 
 `mqtt.clientId` may be empty; the bridge then generates a UUID for the running process.

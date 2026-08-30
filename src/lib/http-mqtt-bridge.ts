@@ -81,7 +81,7 @@ export abstract class HttpMqttBridge<T extends object> implements BridgeInstance
    * @returns {void} Result.
    */
   protected poll(key: string, interval: number, task: () => void | Promise<void>) {
-    this.tasks.set(key, { interval, last: 0, task });
+    this.tasks.set(key, { interval, last: Date.now(), task });
   }
   /**
    * Executes `startRequest`.

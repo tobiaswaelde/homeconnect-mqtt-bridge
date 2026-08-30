@@ -11,7 +11,7 @@ const homeConnectInstanceSchema = instanceSchema.extend({
     .optional()
     .transform((value) => value || undefined),
   refreshToken: z.string().optional(),
-  updateInterval: z.number().positive().default(60000),
+  updateInterval: z.number().positive().default(600000),
 });
 
 export const configSchema = commonSchema

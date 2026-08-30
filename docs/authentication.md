@@ -6,6 +6,8 @@
 4. Start the bridge and open `https://bridge.example.net/home-connect/authorize?instance=kitchen` in a regular browser. Do not automate, intercept, or modify the consent screen.
 5. Complete the consent flow. The callback stores only the refreshable OAuth session in `authFile` (or the default `.home-connect-<hash>.auth.json`) with mode `0600`.
 
+The bridge restores this session after a reboot from the mounted configuration directory. Do not delete `authFile`; browser authorization is only needed again when the session can no longer be refreshed.
+
 Remote Control and Remote Start must be enabled on the appliance before a program can start.
 
 ## Token migration

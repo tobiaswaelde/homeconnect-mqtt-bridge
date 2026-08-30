@@ -202,17 +202,56 @@ describe('HomeConnect', () => {
     expect(instance.client.consumeEventStream).toHaveBeenCalledTimes(1);
     instance.destroy();
   });
+
+  it('loads persisted authentication before one complete reboot synchronization', async () => {
+    const { instance } = createBridge();
+    instance.auth.load = jest.fn().mockResolvedValue(undefined);
+    instance.refreshAppliances = jest.fn().mockResolvedValue(undefined);
+
+    instance.setup();
+    await new Promise(setImmediate);
+
+    expect(instance.auth.load).toHaveBeenCalledTimes(1);
+    expect(instance.refreshAppliances).toHaveBeenCalledWith(true);
+
+    const firstPollTime = Date.now();
+    instance.loop(firstPollTime);
+    expect(instance.refreshAppliances).toHaveBeenCalledTimes(1);
+
+    instance.loop(firstPollTime + cfg.updateInterval);
+    expect(instance.refreshAppliances).toHaveBeenLastCalledWith();
+  });
+
+  it('loads full state only for newly discovered appliances during inventory reconciliation', async () => {
+    const { instance } = createBridge();
+    instance.auth.ensureToken = jest.fn().mockResolvedValue(true);
+    instance.auth.token = { access_token: 'access-token', expires_in: 600 };
+    instance.discoveredApplianceIds.add('known-appliance');
+    instance.client.getAppliances = jest
+      .fn()
+      .mockResolvedValue([{ haId: 'known-appliance' }, { haId: 'new-appliance' }]);
+    instance.refreshAppliance = jest.fn().mockResolvedValue(undefined);
+    instance.client.consumeEventStream = jest.fn(() => new Promise<void>(() => undefined));
+
+    await instance.refreshAppliances();
+
+    expect(instance.refreshAppliance).toHaveBeenCalledTimes(1);
+    expect(instance.refreshAppliance).toHaveBeenCalledWith('new-appliance');
+  });
 });
 
 type TestableBridge = {
-  auth: { ensureToken: jest.Mock; token?: { access_token: string; expires_in: number } };
+  auth: { ensureToken: jest.Mock; load: jest.Mock; token?: { access_token: string; expires_in: number } };
   client: { consumeEventStream: jest.Mock; executeCommand: jest.Mock; getAppliances: jest.Mock };
   connectEvents(id: string): void;
   destroy(): void;
   discoveredApplianceIds: Set<string>;
   executeCommand(command: unknown): Promise<void>;
   getAppliances(): Promise<unknown>;
+  loop(time: number): void;
   refreshAppliance: jest.Mock;
+  refreshAppliances(includeKnownApplianceState?: boolean): Promise<void>;
+  setup(): void;
   startProgram(topic: string, payload: string): void;
   subscribeCommands(): void;
 };
