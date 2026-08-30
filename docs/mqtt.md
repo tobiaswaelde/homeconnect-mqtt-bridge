@@ -7,9 +7,12 @@ All topics are below the configured instance topic. The bridge does not recursiv
 ```text
 <topic>/bridge/connected
 <topic>/bridge/appliances/json
+<topic>/bridge/next-retry-at
 ```
 
 `connected` is `false` at startup and shutdown, and after three consecutive failed appliance-discovery cycles. A successful discovery publishes `true`. `appliances/json` contains the complete appliance-list response and provides the appliance IDs used below.
+
+When Home Connect returns HTTP 429, `next-retry-at` contains the ISO 8601 time at which the bridge will retry the request. It is cleared after that time. The bridge waits for `Retry-After` before retrying; if Home Connect omits the header, it waits ten minutes.
 
 ## Appliance data
 

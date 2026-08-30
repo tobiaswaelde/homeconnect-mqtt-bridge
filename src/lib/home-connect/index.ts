@@ -35,7 +35,7 @@ export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
    */
   constructor(cfg: ActiveHomeConnectConfig, mqtt: MqttBridgeClient) {
     super(cfg, mqtt, `HOME_CONNECT@${cfg.topic}`, cfg.apiBaseUrl);
-    this.client = new HomeConnectClient(cfg);
+    this.client = new HomeConnectClient(cfg, (nextRetryAt) => this.publishNextRetryAt(nextRetryAt));
     this.auth = new HomeConnectAuth(cfg, this.client, (message, error) => this.logError(message, error));
   }
 
@@ -61,6 +61,7 @@ export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
     if (this.destroyed) return;
     this.destroyed = true;
     this.auth.destroy();
+    this.client.destroy();
     for (const timer of this.eventReconnectTimers.values()) clearTimeout(timer);
     this.eventReconnectTimers.clear();
     this.publishAvailability(false);
@@ -295,6 +296,14 @@ export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
     if (this.connected === connected && this.connected) return;
     this.connected = connected;
     this.mqtt.publish(bridgeTopic(this.cfg.topic, 'connected'), connected);
+  }
+
+  /** Publishes the next Home Connect API retry time, or clears it once requests may resume. */
+  private publishNextRetryAt(nextRetryAt?: number) {
+    this.mqtt.publish(
+      bridgeTopic(this.cfg.topic, 'next-retry-at'),
+      nextRetryAt ? new Date(nextRetryAt).toISOString() : null,
+    );
   }
 
   private logError(message: string, error: unknown, signal?: AbortSignal) {
