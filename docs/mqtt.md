@@ -25,6 +25,7 @@ When Home Connect returns HTTP 429, `next-retry-at` contains the ISO 8601 time a
 <topic>/appliances/<appliance-id>/programs/active/json
 <topic>/appliances/<appliance-id>/programs/selected/json
 <topic>/appliances/<appliance-id>/events/json
+<topic>/appliances/<appliance-id>/state/json
 ```
 
 Feature records with a Home Connect `key`, `value`, and optional `unit` are additionally published below the category:
@@ -36,6 +37,34 @@ Feature records with a Home Connect `key`, `value`, and optional `unit` are addi
 ```
 
 `value` always contains the unchanged Home Connect value. `value_human` is published for enum values and contains its final enum segment, for example `Run`. `unit` is published when Home Connect supplied one. SSE payloads are published unchanged at `events/json` and also receive feature topics when they are valid JSON.
+
+`state/json` is a retained, consolidated snapshot for consumers that need one current appliance value instead of merging the raw Home Connect categories and event stream themselves. It is published after the initial synchronization and after every valid event update. The raw topics above remain the unmodified Home Connect responses.
+
+```json
+{
+  "updatedAt": "2026-08-31T12:30:00.000Z",
+  "connected": true,
+  "operationState": {
+    "value": "BSH.Common.EnumType.OperationState.Run",
+    "human": "Run",
+    "unit": null
+  },
+  "program": {
+    "active": { "key": "Dishcare.Dishwasher.Program.Eco50" },
+    "selected": null
+  },
+  "remainingProgramTime": { "value": 4620, "human": null, "unit": "seconds" },
+  "lastEvent": {
+    "key": "BSH.Common.Event.ProgramFinished",
+    "value": "BSH.Common.EnumType.EventPresentState.Present",
+    "level": "hint",
+    "handling": "none",
+    "timestamp": 1479994109
+  }
+}
+```
+
+`lastEvent` retains the most recent present Home Connect event, including program completion and appliance-specific warnings. Refer to the [Home Connect event reference](https://api-docs.home-connect.com/events/) for available event keys and their payloads. Fields that the appliance has not reported are `null`.
 
 ## Commands
 

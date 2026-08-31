@@ -11,8 +11,9 @@ export interface HomeConnectAuthentication {
   token: OAuthToken;
 }
 
-/** Minimal appliance identity returned by the Home Connect API. */
+/** Appliance identity and connection state returned by the Home Connect API. */
 export interface Appliance {
+  connected?: boolean;
   haId: string;
 }
 

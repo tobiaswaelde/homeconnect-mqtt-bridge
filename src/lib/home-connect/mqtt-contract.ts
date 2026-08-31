@@ -54,6 +54,11 @@ export function applianceTopic(rootTopic: string, applianceId: string) {
   return `${rootTopic}/appliances/${applianceId}`;
 }
 
+/** Produces the retained, consolidated appliance state topic. */
+export function applianceStateTopic(rootTopic: string, applianceId: string) {
+  return `${applianceTopic(rootTopic, applianceId)}/state/json`;
+}
+
 /** Returns the per-appliance success topic for a command. */
 export function commandResultTopic(rootTopic: string, applianceId: string, operation: HomeConnectCommandOperation) {
   return `${applianceTopic(rootTopic, applianceId)}/commands/${operation}/result/json`;

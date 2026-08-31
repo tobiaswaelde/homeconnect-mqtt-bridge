@@ -1,4 +1,10 @@
-import { parseProgramCommandTopic, programCommandSchema, publishApplianceInfo, publishCategory } from './mqtt-contract';
+import {
+  applianceStateTopic,
+  parseProgramCommandTopic,
+  programCommandSchema,
+  publishApplianceInfo,
+  publishCategory,
+} from './mqtt-contract';
 
 describe('Home Connect MQTT contract', () => {
   it('accepts only the documented fixed program paths', () => {
@@ -19,6 +25,12 @@ describe('Home Connect MQTT contract', () => {
   it('rejects generic API paths and unexpected program payload keys', () => {
     expect(() => programCommandSchema.parse({ key: 'program', path: '/settings' })).toThrow();
     expect(() => programCommandSchema.parse({ options: [] })).toThrow();
+  });
+
+  it('provides a dedicated topic for a consolidated appliance state', () => {
+    expect(applianceStateTopic('home/home-connect', 'appliance-id')).toBe(
+      'home/home-connect/appliances/appliance-id/state/json',
+    );
   });
 
   it('publishes category JSON and stable feature topics without array indexes', () => {

@@ -238,17 +238,84 @@ describe('HomeConnect', () => {
     expect(instance.refreshAppliance).toHaveBeenCalledTimes(1);
     expect(instance.refreshAppliance).toHaveBeenCalledWith('new-appliance');
   });
+
+  it('publishes an offline snapshot without loading state or opening an event stream', async () => {
+    const { instance, mqtt } = createBridge();
+    instance.auth.ensureToken = jest.fn().mockResolvedValue(true);
+    instance.auth.token = { access_token: 'access-token', expires_in: 600 };
+    instance.client.getAppliances = jest.fn().mockResolvedValue([{ connected: false, haId: 'offline-appliance' }]);
+    instance.refreshAppliance = jest.fn();
+    instance.connectEvents = jest.fn();
+
+    await instance.refreshAppliances(true);
+
+    expect(instance.refreshAppliance).not.toHaveBeenCalled();
+    expect(instance.connectEvents).not.toHaveBeenCalled();
+    expect(mqtt.publish).toHaveBeenCalledWith(
+      'home/home-connect/appliances/offline-appliance/state/json',
+      expect.stringContaining('"connected":false'),
+      { retain: true },
+    );
+  });
+
+  it('publishes one retained state snapshot after synchronization and every event update', async () => {
+    const { instance, mqtt } = createBridge();
+    instance.auth.ensureToken = jest.fn().mockResolvedValue(true);
+    instance.auth.token = { access_token: 'access-token', expires_in: 600 };
+    instance.client.getAppliances = jest.fn().mockResolvedValue([{ connected: true, haId: 'appliance-id' }]);
+    instance.client.getCategory = jest.fn((_: string, category: string) => {
+      if (category === 'status')
+        return Promise.resolve({
+          items: [{ key: 'BSH.Common.Status.OperationState', value: 'BSH.Common.EnumType.OperationState.Run' }],
+        });
+      if (category === 'programs/active') return Promise.resolve({ key: 'Dishcare.Dishwasher.Program.Eco50' });
+      return Promise.resolve({});
+    });
+    instance.client.consumeEventStream = jest.fn(() => new Promise<void>(() => undefined));
+
+    await instance.refreshAppliances(true);
+
+    const stateTopic = 'home/home-connect/appliances/appliance-id/state/json';
+    const publish = mqtt.publish as jest.Mock;
+    const initialState = publish.mock.calls.find(([topic]) => topic === stateTopic);
+    expect(initialState).toEqual([
+      stateTopic,
+      expect.stringContaining('Dishcare.Dishwasher.Program.Eco50'),
+      { retain: true },
+    ]);
+
+    instance.publishEvent(
+      'appliance-id',
+      JSON.stringify({
+        items: [{ key: 'BSH.Common.Option.RemainingProgramTime', unit: 'seconds', value: 4620 }],
+      }),
+    );
+
+    const statePublishes = publish.mock.calls.filter(([topic]) => topic === stateTopic);
+    expect(statePublishes).toHaveLength(2);
+    expect(JSON.parse(statePublishes.at(-1)![1])).toMatchObject({
+      remainingProgramTime: { human: null, unit: 'seconds', value: 4620 },
+    });
+    expect(statePublishes.at(-1)![2]).toEqual({ retain: true });
+    instance.destroy();
+  });
 });
 
 type TestableBridge = {
   auth: { ensureToken: jest.Mock; load: jest.Mock; token?: { access_token: string; expires_in: number } };
-  client: { consumeEventStream: jest.Mock; executeCommand: jest.Mock; getAppliances: jest.Mock };
-  connectEvents(id: string): void;
+  client: {
+    consumeEventStream: jest.Mock;
+    executeCommand: jest.Mock;
+    getAppliances: jest.Mock;
+    getCategory: jest.Mock;
+  };
+  connectEvents: jest.Mock;
   destroy(): void;
   discoveredApplianceIds: Set<string>;
   executeCommand(command: unknown): Promise<void>;
   getAppliances(): Promise<unknown>;
   loop(time: number): void;
+  publishEvent(applianceId: string, payload: string): void;
   refreshAppliance: jest.Mock;
   refreshAppliances(includeKnownApplianceState?: boolean): Promise<void>;
   setup(): void;

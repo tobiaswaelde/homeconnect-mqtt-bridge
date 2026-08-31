@@ -5,8 +5,13 @@ import { resolveMqttClientId } from './client-id';
 
 export type MqttMessageHandler = (topic: string, payload: string) => void;
 
+/** Options that control MQTT publication semantics. */
+export interface MqttPublishOptions {
+  retain?: boolean;
+}
+
 export interface MqttBridgeClient {
-  publish(topic: string, payload: string | number | boolean | null): void;
+  publish(topic: string, payload: string | number | boolean | null, options?: MqttPublishOptions): void;
   subscribe(topic: string, handler: MqttMessageHandler): () => void;
 }
 
@@ -44,11 +49,11 @@ export class MqttService implements MqttBridgeClient, OnModuleDestroy {
    * @param {string | number | boolean | null} payload The payload value.
    * @returns {void} Result.
    */
-  publish(topic: string, payload: string | number | boolean | null) {
+  publish(topic: string, payload: string | number | boolean | null, options: MqttPublishOptions = {}) {
     this.client.publish(
       topic,
       payload === null ? '' : String(payload),
-      { retain: false },
+      { retain: options.retain ?? false },
       (error) => error && this.logger.error(`Failed to publish ${topic}`, error),
     );
   }
