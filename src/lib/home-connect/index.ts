@@ -223,8 +223,6 @@ export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
       });
     } catch (error) {
       this.publishCommandError(details?.applianceId, details?.operation, error);
-    } finally {
-      this.mqtt.publish(commandTopic, null);
     }
   }
 

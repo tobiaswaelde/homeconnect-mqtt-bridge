@@ -39,7 +39,7 @@ Feature records with a Home Connect `key`, `value`, and optional `unit` are addi
 
 ## Commands
 
-Commands are limited to appliances discovered during the most recent refresh. Publish a non-retained JSON payload; after validating the received message, the bridge clears the command input topic. The corresponding result or error topic is authoritative for the asynchronous API operation.
+Commands are limited to appliances discovered during the most recent refresh. Publish a non-retained JSON payload. The bridge never publishes to command input topics, so a subscribed MQTT client cannot receive its own command back as a new command. The corresponding result or error topic is authoritative for the asynchronous API operation.
 
 Start the active program:
 
@@ -58,10 +58,23 @@ Select a program without starting it:
 ```
 
 ```json
-{ "key": "ConsumerProducts.Dishwasher.Program.Eco50" }
+{ "key": "Dishcare.Dishwasher.Program.Eco50" }
 ```
 
 Optional `options` are an array of Home Connect option objects with `key` and `value`.
+
+### Dishwasher: Eco 50 with HygienePlus
+
+HygienePlus is an option, not a standalone program. Start Eco 50 with HygienePlus by publishing this non-retained payload to the `programs-active` topic above:
+
+```json
+{
+  "key": "Dishcare.Dishwasher.Program.Eco50",
+  "options": [{ "key": "Dishcare.Dishwasher.Option.HygienePlus", "value": true }]
+}
+```
+
+Home Connect exposes options only when they are supported by the appliance and selected program. A successful `programs-active/result/json` response confirms the request was accepted.
 
 Each command operation has separate result topics. A `success` result means that Home Connect accepted the API request and the bridge completed its immediate state refresh; use the published status and event topics to confirm the appliance's resulting operation state.
 

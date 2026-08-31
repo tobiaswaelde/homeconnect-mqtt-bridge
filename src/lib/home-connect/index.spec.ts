@@ -37,7 +37,7 @@ describe('HomeConnect', () => {
     expect(mqtt.subscribe).not.toHaveBeenCalledWith('home/home-connect/set/json', expect.any(Function));
   });
 
-  it('rejects commands for an unknown appliance and clears their input topic', () => {
+  it('rejects commands for an unknown appliance without republishing their input topic', () => {
     const { instance, mqtt } = createBridge();
     const topic = 'home/home-connect/appliances/unknown/commands/programs-active/set/json';
     instance.startProgram(topic, JSON.stringify({ key: 'ConsumerProducts.CoffeeMaker.Program.Beverage.Espresso' }));
@@ -46,7 +46,7 @@ describe('HomeConnect', () => {
       'home/home-connect/appliances/unknown/commands/programs-active/error/json',
       expect.stringContaining('not currently discovered'),
     );
-    expect(mqtt.publish).toHaveBeenCalledWith(topic, null);
+    expect(mqtt.publish).not.toHaveBeenCalledWith(topic, null);
   });
 
   it('rejects invalid program payloads without invoking the API', () => {
@@ -61,7 +61,7 @@ describe('HomeConnect', () => {
       'home/home-connect/appliances/appliance-id/commands/programs-active/error/json',
       expect.stringContaining('key'),
     );
-    expect(mqtt.publish).toHaveBeenCalledWith(topic, null);
+    expect(mqtt.publish).not.toHaveBeenCalledWith(topic, null);
   });
 
   it('executes a validated command only for a discovered appliance', () => {
@@ -77,7 +77,7 @@ describe('HomeConnect', () => {
       operation: 'programs-selected',
       path: 'programs/selected',
     });
-    expect(mqtt.publish).toHaveBeenCalledWith(topic, null);
+    expect(mqtt.publish).not.toHaveBeenCalledWith(topic, null);
   });
 
   it('publishes a result topic for a successful command', async () => {
