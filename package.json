@@ -30,7 +30,7 @@
     "qs": "^6.16.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
-    "zod": "^4.4.3"
+    "zod": "^4.6.2"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^1.0.0",
