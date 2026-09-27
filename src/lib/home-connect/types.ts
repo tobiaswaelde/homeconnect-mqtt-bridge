@@ -13,8 +13,12 @@ export interface HomeConnectAuthentication {
 
 /** Appliance identity and connection state returned by the Home Connect API. */
 export interface Appliance {
+  brand?: string;
   connected?: boolean;
   haId: string;
+  name?: string;
+  type?: string;
+  vib?: string;
 }
 
 /** Response returned by the Home Connect appliance list endpoint. */
@@ -28,12 +32,13 @@ export interface HomeAppliancesResponse {
 export type HomeConnectCommandPath = 'programs/active' | 'programs/selected';
 
 /** MQTT-safe command operation names mapped to Home Connect API paths. */
-export type HomeConnectCommandOperation = 'programs-active' | 'programs-selected';
+export type HomeConnectCommandOperation = 'programs-active' | 'programs-active-stop' | 'programs-selected';
 
 /** A validated appliance command ready for the Home Connect API. */
 export interface HomeConnectCommand {
   applianceId: string;
-  body: { data: HomeConnectProgram };
+  body?: { data: HomeConnectProgram };
+  method: 'delete' | 'put';
   operation: HomeConnectCommandOperation;
   path: HomeConnectCommandPath;
 }

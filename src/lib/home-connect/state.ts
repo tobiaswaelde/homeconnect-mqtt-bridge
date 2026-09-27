@@ -3,20 +3,35 @@ import type { HomeConnectProgram, MqttScalar } from './types';
 const activeProgramKey = 'BSH.Common.Root.ActiveProgram';
 const applianceConnectedKey = 'BSH.Common.Appliance.Connected';
 const applianceDisconnectedKey = 'BSH.Common.Appliance.Disconnected';
+const doorStateKey = 'BSH.Common.Status.DoorState';
+const localControlActiveKey = 'BSH.Common.Status.LocalControlActive';
 const operationStateKey = 'BSH.Common.Status.OperationState';
+const powerStateKey = 'BSH.Common.Setting.PowerState';
+const programProgressKey = 'BSH.Common.Option.ProgramProgress';
 const remainingProgramTimeKey = 'BSH.Common.Option.RemainingProgramTime';
+const remoteControlActiveKey = 'BSH.Common.Status.RemoteControlActive';
+const remoteControlStartAllowedKey = 'BSH.Common.Status.RemoteControlStartAllowed';
 const selectedProgramKey = 'BSH.Common.Root.SelectedProgram';
 
 /** The stable, cross-appliance state projection published by the MQTT bridge. */
 export interface ApplianceState {
+  activeEvents: HomeConnectEvent[];
   connected: boolean | null;
+  doorState: HomeConnectStateValue | null;
   lastEvent: HomeConnectEvent | null;
   operationState: HomeConnectStateValue | null;
+  powerState: HomeConnectStateValue | null;
   program: {
     active: HomeConnectProgram | null;
     selected: HomeConnectProgram | null;
   };
+  programProgress: HomeConnectStateValue | null;
   remainingProgramTime: HomeConnectStateValue | null;
+  remoteControl: {
+    active: boolean | null;
+    localActive: boolean | null;
+    startAllowed: boolean | null;
+  };
   updatedAt: string;
 }
 
@@ -39,11 +54,16 @@ export interface HomeConnectStateValue {
 /** Creates an empty state projection for a newly discovered appliance. */
 export function createApplianceState(): ApplianceState {
   return {
+    activeEvents: [],
     connected: null,
+    doorState: null,
     lastEvent: null,
     operationState: null,
+    powerState: null,
     program: { active: null, selected: null },
+    programProgress: null,
     remainingProgramTime: null,
+    remoteControl: { active: null, localActive: null, startAllowed: null },
     updatedAt: new Date(0).toISOString(),
   };
 }
@@ -52,6 +72,7 @@ export function createApplianceState(): ApplianceState {
 export function updateStateFromCategory(state: ApplianceState, category: string, data: unknown) {
   if (category === 'programs/active') {
     state.program.active = program(data);
+    for (const feature of features(data)) updateStateFromFeature(state, feature);
     return;
   }
   if (category === 'programs/selected') {
@@ -89,23 +110,46 @@ function updateStateFromFeature(state: ApplianceState, feature: Record<string, u
 
   if (key === applianceConnectedKey) state.connected = true;
   else if (key === applianceDisconnectedKey) state.connected = false;
+  else if (key === doorStateKey) state.doorState = stateValue(feature);
+  else if (key === localControlActiveKey && typeof feature.value === 'boolean')
+    state.remoteControl.localActive = feature.value;
   else if (key === operationStateKey) state.operationState = stateValue(feature);
+  else if (key === powerStateKey) state.powerState = stateValue(feature);
+  else if (key === programProgressKey) state.programProgress = stateValue(feature);
   else if (key === remainingProgramTimeKey) state.remainingProgramTime = stateValue(feature);
+  else if (key === remoteControlActiveKey && typeof feature.value === 'boolean')
+    state.remoteControl.active = feature.value;
+  else if (key === remoteControlStartAllowedKey && typeof feature.value === 'boolean')
+    state.remoteControl.startAllowed = feature.value;
   else if (key === activeProgramKey && typeof feature.value === 'string') state.program.active = { key: feature.value };
   else if (key === selectedProgramKey && typeof feature.value === 'string')
     state.program.selected = { key: feature.value };
+
+  if (key.includes('.Event.')) updateActiveEvent(state, event(feature));
 
   if (
     (key.includes('.Event.') || key === applianceConnectedKey || key === applianceDisconnectedKey) &&
     eventIsPresent(feature.value)
   )
-    state.lastEvent = {
-      handling: typeof feature.handling === 'string' ? feature.handling : null,
-      key,
-      level: typeof feature.level === 'string' ? feature.level : null,
-      timestamp: typeof feature.timestamp === 'number' ? feature.timestamp : null,
-      value: feature.value,
-    };
+    state.lastEvent = event(feature);
+}
+
+function updateActiveEvent(state: ApplianceState, nextEvent: HomeConnectEvent) {
+  const index = state.activeEvents.findIndex((current) => current.key === nextEvent.key);
+  if (eventIsPresent(nextEvent.value)) {
+    if (index >= 0) state.activeEvents[index] = nextEvent;
+    else state.activeEvents.push(nextEvent);
+  } else if (index >= 0) state.activeEvents.splice(index, 1);
+}
+
+function event(feature: Record<string, unknown>): HomeConnectEvent {
+  return {
+    handling: typeof feature.handling === 'string' ? feature.handling : null,
+    key: feature.key as string,
+    level: typeof feature.level === 'string' ? feature.level : null,
+    timestamp: typeof feature.timestamp === 'number' ? feature.timestamp : null,
+    value: feature.value as MqttScalar,
+  };
 }
 
 function program(value: unknown): HomeConnectProgram | null {
@@ -126,7 +170,13 @@ function stateValue(feature: Record<string, unknown>): HomeConnectStateValue {
 function features(value: unknown) {
   const record = asRecord(value);
   if (!record) return [];
-  return [record, ...records(record.items), ...records(record.options)];
+  return [
+    record,
+    ...records(record.items),
+    ...records(record.options),
+    ...records(record.settings),
+    ...records(record.status),
+  ];
 }
 
 function records(value: unknown) {
@@ -148,5 +198,5 @@ function isEnumValue(value: MqttScalar): value is string {
 }
 
 function eventIsPresent(value: MqttScalar) {
-  return typeof value !== 'string' || !value.endsWith('.Off');
+  return typeof value !== 'string' || value.endsWith('.Present');
 }

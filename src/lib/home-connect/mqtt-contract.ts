@@ -2,11 +2,21 @@ import { z } from 'zod';
 import type { HomeConnectCommandOperation, HomeConnectCommandPath, MqttScalar } from './types';
 
 /** API categories that are polled and published for each discovered appliance. */
-export const applianceCategories = ['status', 'settings', 'programs/active', 'programs/selected'] as const;
+export const applianceCategories = [
+  'status',
+  'settings',
+  'programs/active',
+  'programs/selected',
+  'programs/available',
+] as const;
 
-const programOperations: Record<HomeConnectCommandOperation, HomeConnectCommandPath> = {
-  'programs-active': 'programs/active',
-  'programs-selected': 'programs/selected',
+const commandOperations: Record<
+  HomeConnectCommandOperation,
+  { method: 'delete' | 'put'; path: HomeConnectCommandPath }
+> = {
+  'programs-active': { method: 'put', path: 'programs/active' },
+  'programs-active-stop': { method: 'delete', path: 'programs/active' },
+  'programs-selected': { method: 'put', path: 'programs/selected' },
 };
 
 /** Program payload accepted on an appliance program command topic. */
@@ -17,7 +27,10 @@ export const programCommandSchema = z
   })
   .strict();
 
-/** Decodes only the two explicit command operations supported by this bridge. */
+/** Empty payload accepted when stopping the currently active program. */
+export const stopProgramCommandSchema = z.object({}).strict();
+
+/** Decodes only the three explicit command operations supported by this bridge. */
 export function parseProgramCommandTopic(topic: string, rootTopic: string) {
   const prefix = `${rootTopic}/appliances/`;
   const suffix = '/set/json';
@@ -32,14 +45,14 @@ export function parseProgramCommandTopic(topic: string, rootTopic: string) {
   if (!command.startsWith('commands/')) return;
 
   const operation = command.slice('commands/'.length);
-  const path = programOperations[operation as HomeConnectCommandOperation];
-  if (applianceId.includes('/') || !path) return;
-  return { applianceId, operation: operation as HomeConnectCommandOperation, path };
+  const details = commandOperations[operation as HomeConnectCommandOperation];
+  if (applianceId.includes('/') || !details) return;
+  return { applianceId, operation: operation as HomeConnectCommandOperation, ...details };
 }
 
 /** Lists the stable topics that accept validated program commands. */
 export function programCommandTopics(rootTopic: string) {
-  return (Object.keys(programOperations) as HomeConnectCommandOperation[]).map(
+  return (Object.keys(commandOperations) as HomeConnectCommandOperation[]).map(
     (operation) => `${rootTopic}/appliances/+/commands/${operation}/set/json`,
   );
 }
@@ -102,7 +115,13 @@ export function publishCategory(
   if (!record) return;
 
   publishFeature(publish, root, record);
-  for (const feature of [...records(record.items), ...records(record.options)]) publishFeature(publish, root, feature);
+  for (const feature of [
+    ...records(record.items),
+    ...records(record.options),
+    ...records(record.settings),
+    ...records(record.status),
+  ])
+    publishFeature(publish, root, feature);
 }
 
 /** Publishes an enum display value plus its API value and optional unit. */

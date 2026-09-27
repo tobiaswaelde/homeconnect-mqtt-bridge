@@ -41,6 +41,8 @@ Example command:
 mosquitto_pub -h mqtt.example.net -t 'home/home-connect/kitchen/appliances/BOSCH-HA-ID/commands/programs-active/set/json' -m '{"key":"ConsumerProducts.CoffeeMaker.Program.Beverage.Espresso"}'
 ```
 
+Available programs are published retained below each appliance at `programs/available/json`. Stop an active program by publishing `{}` to `commands/programs-active-stop/set/json`.
+
 Discover `BOSCH-HA-ID` after authentication with:
 
 ```bash

@@ -101,15 +101,21 @@ export class HomeConnectClient {
 
   /** Executes a previously validated, fixed-path appliance command. */
   async executeCommand(command: HomeConnectCommand, accessToken: string, signal: AbortSignal) {
-    await this.request(signal, () =>
-      this.api.put(`/api/homeappliances/${encodeURIComponent(command.applianceId)}/${command.path}`, command.body, {
+    const url = `/api/homeappliances/${encodeURIComponent(command.applianceId)}/${command.path}`;
+    await this.request(signal, () => {
+      if (command.method === 'delete')
+        return this.api.delete(url, {
+          headers: authorizationHeaders(accessToken),
+          signal,
+        });
+      return this.api.put(url, command.body, {
         headers: {
           ...authorizationHeaders(accessToken),
           'content-type': 'application/vnd.bsh.sdk.v1+json',
         },
         signal,
-      }),
-    );
+      });
+    });
   }
 
   /** Reads one SSE stream and forwards parsed data payloads to the caller. */

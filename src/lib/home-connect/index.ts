@@ -16,6 +16,7 @@ import {
   programCommandTopics,
   publishApplianceInfo,
   publishCategory,
+  stopProgramCommandSchema,
 } from './mqtt-contract';
 import {
   clearStateCategory,
@@ -30,6 +31,7 @@ import type { Appliance, HomeConnectCommand, HomeConnectCommandOperation } from 
 
 /** Bridges discovered Home Connect appliances, state categories, and validated program commands to MQTT. */
 export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
+  private static readonly heartbeatInterval = 30_000;
   private readonly activeEventStreams = new Set<string>();
   private readonly applianceStates = new Map<string, ApplianceState>();
   private readonly auth: HomeConnectAuth;
@@ -64,7 +66,9 @@ export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
   /** Sets up command routing and restores the persisted OAuth session before the first synchronization. */
   setup() {
     this.publishAvailability(false);
+    this.publishHeartbeat();
     this.subscribeCommands();
+    this.poll('heartbeat', HomeConnect.heartbeatInterval, () => this.publishHeartbeat());
     void this.initialize();
   }
 
@@ -77,6 +81,7 @@ export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
     for (const timer of this.eventReconnectTimers.values()) clearTimeout(timer);
     this.eventReconnectTimers.clear();
     this.publishAvailability(false);
+    this.mqtt.publish(bridgeTopic(this.cfg.topic, 'heartbeat-at'), null, { retain: true });
     super.destroy();
   }
 
@@ -121,7 +126,7 @@ export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
     appliances.forEach((appliance) => this.discoveredApplianceIds.add(appliance.haId));
     for (const applianceId of knownApplianceIds)
       if (!this.discoveredApplianceIds.has(applianceId)) this.removeApplianceState(applianceId);
-    this.mqtt.publish(bridgeTopic(this.cfg.topic, 'appliances/json'), JSON.stringify(appliances));
+    this.mqtt.publish(bridgeTopic(this.cfg.topic, 'appliances/json'), JSON.stringify(appliances), { retain: true });
     appliances.forEach((appliance) => {
       publishApplianceInfo(this.mqtt.publish.bind(this.mqtt), this.cfg.topic, appliance.haId, appliance);
       updateStateConnection(this.stateFor(appliance.haId), appliance.connected);
@@ -159,7 +164,8 @@ export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
   }
 
   private async refreshAppliance(applianceId: string) {
-    await Promise.all(applianceCategories.map((category) => this.getApplianceCategory(applianceId, category)));
+    // Home Connect can reject concurrent category requests for the same appliance with HTTP 409.
+    for (const category of applianceCategories) await this.getApplianceCategory(applianceId, category);
     this.publishApplianceState(applianceId);
   }
 
@@ -170,7 +176,11 @@ export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
       const accessToken = await this.accessToken();
       if (!accessToken) return;
       const data = await this.client.getCategory(applianceId, category, accessToken, controller.signal);
-      publishCategory(this.mqtt.publish.bind(this.mqtt), this.cfg.topic, applianceId, category, data);
+      if (category === 'programs/available')
+        this.mqtt.publish(`${applianceTopic(this.cfg.topic, applianceId)}/${category}/json`, JSON.stringify(data), {
+          retain: true,
+        });
+      else publishCategory(this.mqtt.publish.bind(this.mqtt), this.cfg.topic, applianceId, category, data);
       updateStateFromCategory(this.stateFor(applianceId), category, data);
     } catch (error) {
       if (isUnavailableProgramCategory(category, error)) {
@@ -237,6 +247,7 @@ export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
     this.disconnectEvents(applianceId);
     this.applianceStates.delete(applianceId);
     this.mqtt.publish(applianceStateTopic(this.cfg.topic, applianceId), null, { retain: true });
+    this.mqtt.publish(`${applianceTopic(this.cfg.topic, applianceId)}/programs/available/json`, null, { retain: true });
   }
 
   private stateFor(applianceId: string) {
@@ -258,19 +269,31 @@ export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
 
   private subscribeCommands() {
     for (const topic of programCommandTopics(this.cfg.topic))
-      this.subscribe(topic, (commandTopic, payload) => this.startProgram(commandTopic, payload));
+      this.subscribe(topic, (commandTopic, payload) => this.handleCommand(commandTopic, payload));
   }
 
-  private startProgram(commandTopic: string, payload: string) {
+  private handleCommand(commandTopic: string, payload: string) {
     const details = parseProgramCommandTopic(commandTopic, this.cfg.topic);
     try {
       if (!details) throw new Error('Command topic does not name an allowed Home Connect operation.');
       if (!this.discoveredApplianceIds.has(details.applianceId))
         throw new Error('Appliance is not currently discovered.');
-      const program = programCommandSchema.parse(JSON.parse(payload));
+      const commandPayload = JSON.parse(payload);
+      if (details.operation === 'programs-active-stop') {
+        stopProgramCommandSchema.parse(commandPayload);
+        void this.executeCommand({
+          applianceId: details.applianceId,
+          method: details.method,
+          operation: details.operation,
+          path: details.path,
+        });
+        return;
+      }
+      const program = programCommandSchema.parse(commandPayload);
       void this.executeCommand({
         applianceId: details.applianceId,
         body: { data: program },
+        method: details.method,
         operation: details.operation,
         path: details.path,
       });
@@ -300,7 +323,12 @@ export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
 
       this.mqtt.publish(
         commandResultTopic(this.cfg.topic, command.applianceId, command.operation),
-        JSON.stringify({ applianceId: command.applianceId, operation: command.operation, status: 'success' }),
+        JSON.stringify({
+          applianceId: command.applianceId,
+          operation: command.operation,
+          status: 'success',
+          timestamp: new Date().toISOString(),
+        }),
       );
     } catch (error) {
       if (controller.signal.aborted) return;
@@ -324,6 +352,7 @@ export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
         operation: operation ?? null,
         reason: error instanceof Error ? error.message : String(error),
         status: 'error',
+        timestamp: new Date().toISOString(),
       }),
     );
   }
@@ -346,7 +375,11 @@ export class HomeConnect extends HttpMqttBridge<ActiveHomeConnectConfig> {
   private publishAvailability(connected: boolean) {
     if (this.connected === connected && this.connected) return;
     this.connected = connected;
-    this.mqtt.publish(bridgeTopic(this.cfg.topic, 'connected'), connected);
+    this.mqtt.publish(bridgeTopic(this.cfg.topic, 'connected'), connected, { retain: true });
+  }
+
+  private publishHeartbeat() {
+    this.mqtt.publish(bridgeTopic(this.cfg.topic, 'heartbeat-at'), new Date().toISOString(), { retain: true });
   }
 
   /** Publishes the next Home Connect API retry time, or clears it once requests may resume. */

@@ -82,8 +82,58 @@ describe('Home Connect rate limiting', () => {
   });
 });
 
+describe('Home Connect commands', () => {
+  const cfg: ActiveHomeConnectConfig = {
+    apiBaseUrl: 'https://api.home-connect.com',
+    clientId: 'client-id',
+    clientSecret: 'client-secret',
+    enabled: true,
+    id: 'test',
+    eventReconnectInterval: 30_000,
+    redirectUri: undefined,
+    refreshToken: 'refresh-token',
+    topic: 'home/home-connect',
+    updateInterval: 600_000,
+  };
+
+  it('uses DELETE without a body to stop the active program', async () => {
+    const client = new HomeConnectClient(cfg) as unknown as TestableCommandClient;
+    client.api.delete = jest.fn().mockResolvedValue({});
+
+    await client.executeCommand(
+      {
+        applianceId: 'appliance/id',
+        method: 'delete',
+        operation: 'programs-active-stop',
+        path: 'programs/active',
+      },
+      'access-token',
+      new AbortController().signal,
+    );
+
+    expect(client.api.delete).toHaveBeenCalledWith('/api/homeappliances/appliance%2Fid/programs/active', {
+      headers: { authorization: 'Bearer access-token' },
+      signal: expect.any(AbortSignal),
+    });
+  });
+});
+
 type TestableClient = {
   api: { get: jest.Mock };
   destroy(): void;
   getAppliances(accessToken: string, signal: AbortSignal): Promise<unknown>;
+};
+
+type TestableCommandClient = {
+  api: { delete: jest.Mock };
+  executeCommand(
+    command: {
+      applianceId: string;
+      method: 'delete';
+      operation: 'programs-active-stop';
+      path: 'programs/active';
+    },
+    accessToken: string,
+    signal: AbortSignal,
+  ): Promise<void>;
 };
