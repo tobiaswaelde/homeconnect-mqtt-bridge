@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0
+
+### Minor Changes
+
+- [`1b3ac6b`](https://github.com/tobiaswaelde/homeconnect-mqtt-bridge/commit/1b3ac6be5f49c1e73c3fb023dceff2b581da13b0) Thanks [@tobiaswaelde](https://github.com/tobiaswaelde)! - Publish retained appliance discovery and available programs, expose richer state and heartbeat data, and support stopping active programs.
+
 ## 0.1.0
 
 ### Minor Changes
